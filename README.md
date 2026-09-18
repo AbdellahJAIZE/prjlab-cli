@@ -40,8 +40,7 @@ trusted solely to this client. A public CLI does not expose private user project
 
 ## License
 
-License selection is pending. Public visibility alone does not grant an open-source
-license. The package remains marked private to prevent accidental npm publication
-until the owner selects licensing, the npm namespace and the release policy.
+Licensed under the [MIT License](LICENSE). The package remains marked private
+to prevent accidental npm publication until the namespace and release are ready.
 
 See SECURITY.md for private vulnerability reporting.
