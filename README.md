@@ -15,9 +15,37 @@ node dist/bin.js --help
 node dist/bin.js --version
 ```
 
-This build supports help and version output only. Login, push, pull, clone and
-search explicitly exit with an error because they are not implemented. It does
-not read project files, store credentials or contact any service.
+Implemented local commands: `prj init`, `prj status`, `prj snapshot`, and
+`prj export <snapshot-id> <new-directory>`. Run them in your project directory.
+They read local project files only when requested; nothing is uploaded. Login,
+push, pull, clone and search still explicitly fail as unimplemented.
+
+## Local snapshots
+
+`init` creates `.prj/` metadata. Add `.prj/` to your Git ignore rules. `snapshot`
+captures regular files into a SHA-256-verified local store and updates the local
+HEAD only after capture succeeds. `status` reports additions, edits and deletions
+without moving that baseline. `export` verifies all objects and writes to a new
+directory; it refuses an existing target and does not execute imported code.
+Exports use private file permissions and do not preserve executable bits yet.
+
+Root/nested `.gitignore` and root `.prjignore` filter captures. Fixed exclusions
+include Git/PrjLab metadata, dependencies/build outputs, environment secrets
+(except `.env.example`), key files, cloud credential folders and Claude trust/hook
+settings. These filename rules are not a complete secret scanner. Review your
+files before capturing or sharing. Local snapshots are not encrypted.
+
+Curated context can be placed in `.prjcontext/memory/`, `.prjcontext/sessions/`
+and `.prjcontext/instructions/`. It is captured with explicit content types.
+`CLAUDE.md` and `AGENTS.md` are classified as instructions. Global assistant
+folders and unrelated projects are never scanned automatically.
+
+Current development limits: 1,000 files, 5 MiB per file, 100 MiB per snapshot.
+Symlinks, hardlinks, unsafe portable paths and case collisions are rejected.
+An exclusive `.prj/lock` prevents overlapping operations. After a crash, verify
+no PrjLab process is active before removing a stale lock. Interrupted exports
+leave their new partial directory for inspection and do not change the source
+snapshot. Pull/merge and automatic deletion are not implemented yet.
 
 ## Check changes
 

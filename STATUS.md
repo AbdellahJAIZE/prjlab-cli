@@ -12,9 +12,11 @@ Last updated: 2026-09-18
 
 TypeScript CLI foundation: help/version, explicit failure for unimplemented
 operations, unit and installed-package checks, cross-platform GitHub CI.
-No npm release, networking, credentials or capture/restore yet. MIT license selected and included in package contents.
+Local init/status/snapshot/export implemented with SHA-256 integrity checks and
+path/link/conflict safeguards. No networking, credential storage or npm release.
+MIT license included in package contents.
 
 ## Next
 
 Define the public API contract, implement real browser authentication and scoped
-credential storage, then port safe capture/restore with regression tests.
+credential storage. Add remote sync and conflict-safe pull/recovery next.

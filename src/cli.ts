@@ -11,7 +11,7 @@ export function run(args: readonly string[]): {
   ) {
     return {
       code: 0,
-      stdout: `PrjLab CLI (development)\n\nUsage: prj [--help | --version]\n\nLogin, push, pull and clone are not implemented yet.\nThis build does not read project files or send network requests.\n`,
+      stdout: `PrjLab CLI (development)\n\nUsage: prj [init | status | snapshot | export <id> <new-directory> | --help | --version]\n\nLogin, push, pull and clone are not implemented yet.\nLocal commands read project files only when requested. Nothing is uploaded.\n`,
       stderr: "",
     };
   }
