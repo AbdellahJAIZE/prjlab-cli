@@ -1,5 +1,14 @@
 # History
 
+## 2026-09-18 — Safe local snapshots
+
+Added init/status/snapshot/export, bounded capture with ignore rules and typed
+curated context. SHA-256 checks, exclusive locks, safe portable paths, link refusal
+and no-overwrite export protect local work. HEAD changes only after capture succeeds.
+18 local tests cover traversal, corrupt objects, links, concurrency, ignore rules,
+status and round trips. Installed-package test now exercises capture/export.
+Remote authentication/sync and conflict-safe pull remain unimplemented.
+
 ## 2026-09-18 — MIT license
 
 Owner selected MIT for the public CLI. Added LICENSE and package metadata,
