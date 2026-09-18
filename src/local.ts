@@ -1,4 +1,6 @@
 import {
+  restoreSnapshot,
+  recover,
   initialize,
   capture,
   status,
@@ -10,9 +12,34 @@ export async function local(
   cwd = process.cwd(),
 ): Promise<{ code: number; stdout: string; stderr: string } | undefined> {
   const command = args[0];
-  if (!["init", "status", "snapshot", "export"].includes(command ?? ""))
+  if (
+    !["init", "status", "snapshot", "export", "restore", "recover"].includes(
+      command ?? "",
+    )
+  )
     return undefined;
   try {
+    if (command === "restore") {
+      if (args.length !== 2)
+        throw new ProjectError("Usage: prj restore <snapshot-id>");
+      const result = await restoreSnapshot(cwd, args[1]!);
+      return {
+        code: 0,
+        stdout: `Restored snapshot; ${result.changed} tracked paths changed. Local edits were preserved.\n`,
+        stderr: "",
+      };
+    }
+    if (command === "recover") {
+      if (args.length !== 1) throw new ProjectError("Usage: prj recover");
+      const result = await recover(cwd);
+      return {
+        code: 0,
+        stdout: result.recovered
+          ? "Interrupted restore recovered.\n"
+          : "No interrupted restore found.\n",
+        stderr: "",
+      };
+    }
     if (command === "export") {
       if (args.length !== 3)
         throw new ProjectError(

@@ -210,7 +210,11 @@ async function state(root: string) {
   await directory(path.join(meta, "snapshots"));
   return { base, meta };
 }
-async function locked<T>(meta: string, work: () => Promise<T>): Promise<T> {
+async function locked<T>(
+  meta: string,
+  work: () => Promise<T>,
+  allowPending = false,
+): Promise<T> {
   let fd;
   try {
     fd = await open(path.join(meta, "lock"), "wx", 0o600);
@@ -223,6 +227,10 @@ async function locked<T>(meta: string, work: () => Promise<T>): Promise<T> {
   }
   try {
     await fd.writeFile(String(process.pid));
+    if (!allowPending && (await statOrMissing(path.join(meta, "restore.json"))))
+      throw new ProjectError(
+        "An interrupted restore needs recovery. Run prj recover.",
+      );
     return await work();
   } finally {
     await fd.close();
@@ -451,4 +459,263 @@ export async function exportSnapshot(
     }
     return snapshot.entries.length;
   });
+}
+interface Content {
+  hash: string;
+  size: number;
+}
+interface Change {
+  path: string;
+  before: Content | null;
+  after: Content | null;
+}
+interface Journal {
+  version: 1;
+  base: string | null;
+  target: string;
+  changes: Change[];
+}
+async function head(meta: string): Promise<string | null> {
+  const file = path.join(meta, "HEAD");
+  return (await statOrMissing(file))
+    ? (await readSafe(file, 65)).toString("utf8").trim()
+    : null;
+}
+async function current(base: string, name: string): Promise<Content | null> {
+  safePath(name);
+  const parts = name.split("/");
+  let cursor = base;
+  for (const part of parts.slice(0, -1)) {
+    if (
+      (await readdir(cursor)).some(
+        (name) => name !== part && name.toLowerCase() === part.toLowerCase(),
+      )
+    )
+      throw new ProjectError(
+        "Restore conflicts with an existing case-variant path.",
+      );
+    cursor = path.join(cursor, part);
+    const stat = await statOrMissing(cursor);
+    if (!stat) return null;
+    await directory(cursor);
+  }
+  const leaf = parts[parts.length - 1]!;
+  if (
+    (await readdir(cursor)).some(
+      (name) => name !== leaf && name.toLowerCase() === leaf.toLowerCase(),
+    )
+  )
+    throw new ProjectError(
+      "Restore conflicts with an existing case-variant path.",
+    );
+  const file = path.join(base, ...parts);
+  if (!(await statOrMissing(file))) return null;
+  const data = await readSafe(file, MAX_FILE);
+  return { hash: digest(data), size: data.length };
+}
+async function object(meta: string, content: Content) {
+  const data = await readSafe(
+    path.join(meta, "objects", content.hash),
+    MAX_FILE,
+  );
+  if (data.length !== content.size || digest(data) !== content.hash)
+    throw new ProjectError("Stored object integrity check failed.");
+  return data;
+}
+async function writeChange(
+  base: string,
+  meta: string,
+  name: string,
+  content: Content | null,
+) {
+  const parts = safePath(name).split("/");
+  let cursor = base;
+  if (content) {
+    const data = await object(meta, content);
+    for (const part of parts.slice(0, -1)) {
+      cursor = path.join(cursor, part);
+      try {
+        await mkdir(cursor, { mode: 0o700 });
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+      }
+      await directory(cursor);
+    }
+    await atomic(path.join(base, ...parts), data);
+  } else {
+    for (const part of parts.slice(0, -1)) {
+      cursor = path.join(cursor, part);
+      await directory(cursor);
+    }
+    await unlink(path.join(base, ...parts));
+  }
+}
+const same = (a: Content | null, b: Content | null) =>
+  a?.hash === b?.hash && a?.size === b?.size;
+async function rollback(base: string, meta: string, journal: Journal) {
+  for (const change of [...journal.changes].reverse()) {
+    const local = await current(base, change.path);
+    if (same(local, change.before)) continue;
+    if (!same(local, change.after))
+      throw new ProjectError(
+        "Recovery found edits made after the interrupted restore. Keep them safe before retrying recovery.",
+      );
+    await writeChange(base, meta, change.path, change.before);
+  }
+  await unlink(path.join(meta, "restore.json"));
+}
+/** Three-way restore. The checkpoint callback is for fault-injection tests. */
+export async function restoreSnapshot(
+  root: string,
+  id: string,
+  checkpoint: () => Promise<void> = async () => {},
+) {
+  const { base, meta } = await state(root);
+  return locked(meta, async () => {
+    const target = await load(meta, id),
+      baselineId = await head(meta),
+      baseline = baselineId
+        ? await load(meta, baselineId)
+        : { version: 1 as const, entries: [] };
+    const before = new Map(baseline.entries.map((e) => [e.path, e])),
+      after = new Map(target.entries.map((e) => [e.path, e]));
+    // Catch portable collisions between untouched local and incoming names as well.
+    const localSnapshot = await scan(base);
+    const localFolded = new Map(
+      localSnapshot.entries.map((e) => [e.path.toLowerCase(), e.path]),
+    );
+    for (const entry of target.entries) {
+      const collision = localFolded.get(entry.path.toLowerCase());
+      if (collision && collision !== entry.path)
+        throw new ProjectError(
+          "Restore conflicts with an existing case-variant path.",
+        );
+      await object(meta, entry);
+    }
+    const changes: Change[] = [];
+    for (const name of [
+      ...new Set([...before.keys(), ...after.keys()]),
+    ].sort()) {
+      const previous = before.get(name) ?? null,
+        incoming = after.get(name) ?? null;
+      if (same(previous, incoming)) continue;
+      const local = await current(base, name);
+      if (same(local, incoming)) continue;
+      if (!same(local, previous))
+        throw new ProjectError(
+          "Restore conflicts with local edits or untracked files. Nothing was changed.",
+        );
+      if (local) {
+        const data = await readSafe(path.join(base, name), MAX_FILE);
+        await store(meta, { path: name, ...local, kind: "file" }, data);
+      }
+      changes.push({
+        path: name,
+        before: local,
+        after: incoming ? { hash: incoming.hash, size: incoming.size } : null,
+      });
+    }
+    if (!changes.length) {
+      await atomic(path.join(meta, "HEAD"), id + "\n");
+      return { changed: 0 };
+    }
+    const journal: Journal = {
+      version: 1,
+      base: baselineId,
+      target: id,
+      changes,
+    };
+    await atomic(path.join(meta, "restore.json"), JSON.stringify(journal));
+    try {
+      for (const change of changes) {
+        if (!same(await current(base, change.path), change.before))
+          throw new ProjectError("Working files changed during restore.");
+        await writeChange(base, meta, change.path, change.after);
+        await checkpoint();
+      }
+      // Commit only after every planned write/deletion succeeds.
+      await atomic(path.join(meta, "HEAD"), id + "\n");
+    } catch (error) {
+      try {
+        await rollback(base, meta, journal);
+      } catch {
+        throw new ProjectError(
+          "Restore interrupted and needs recovery. The baseline was not advanced. Run prj recover.",
+        );
+      }
+      throw new ProjectError(
+        "Restore failed and was rolled back. The baseline was not advanced.",
+      );
+    }
+    await unlink(path.join(meta, "restore.json"));
+    return { changed: changes.length };
+  });
+}
+function validateJournal(value: unknown): Journal {
+  if (!value || typeof value !== "object")
+    throw new ProjectError("Invalid recovery journal.");
+  const j = value as Journal;
+  if (
+    j.version !== 1 ||
+    !(j.base === null || (typeof j.base === "string" && HASH.test(j.base))) ||
+    typeof j.target !== "string" ||
+    !HASH.test(j.target) ||
+    !Array.isArray(j.changes) ||
+    j.changes.length > MAX_ENTRIES * 2
+  )
+    throw new ProjectError("Invalid recovery journal.");
+  const seen = new Set<string>();
+  for (const c of j.changes) {
+    if (!c || typeof c !== "object")
+      throw new ProjectError("Invalid recovery journal.");
+    safePath(c.path);
+    if (seen.has(c.path.toLowerCase()))
+      throw new ProjectError("Duplicate recovery path.");
+    seen.add(c.path.toLowerCase());
+    for (const content of [c.before, c.after])
+      if (content !== null)
+        validateSnapshot({
+          version: 1,
+          entries: [{ path: c.path, ...content, kind: "file" }],
+        });
+  }
+  return j;
+}
+export async function recover(root: string) {
+  const { base, meta } = await state(root);
+  const lock = path.join(meta, "lock");
+  if (await statOrMissing(lock)) {
+    const pid = Number((await readSafe(lock, 20)).toString("utf8"));
+    if (!Number.isSafeInteger(pid) || pid <= 0)
+      throw new ProjectError("Invalid lock; inspect it manually.");
+    try {
+      process.kill(pid, 0);
+      throw new ProjectError("An operation is still running.");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+    }
+    await unlink(lock);
+  }
+  return locked(
+    meta,
+    async () => {
+      const file = path.join(meta, "restore.json");
+      if (!(await statOrMissing(file))) return { recovered: false };
+      const journal = validateJournal(
+        JSON.parse((await readSafe(file, 1024 * 1024)).toString("utf8")),
+      );
+      const active = await head(meta);
+      if (active === journal.target) {
+        await unlink(file);
+        return { recovered: true };
+      }
+      if (active !== journal.base)
+        throw new ProjectError(
+          "Recovery baseline does not match the interrupted operation.",
+        );
+      await rollback(base, meta, journal);
+      return { recovered: true };
+    },
+    true,
+  );
 }

@@ -1,5 +1,14 @@
 # History
 
+## 2026-09-18 — Conflict-safe restore and recovery
+
+Added three-way local restore, tracked deletions and preservation of unrelated
+edits/untracked files. Conflicts fail before mutation. Journaled operations roll
+back on failure; killed processes can recover without a false baseline advance.
+Recovery refuses to overwrite edits made after interruption. 27 tests now cover
+these cases, including real child-process termination and portable case collisions.
+Remote pull is not connected; no claim of power-loss durability.
+
 ## 2026-09-18 — Safe local snapshots
 
 Added init/status/snapshot/export, bounded capture with ignore rules and typed

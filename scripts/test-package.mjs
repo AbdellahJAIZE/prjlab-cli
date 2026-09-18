@@ -64,6 +64,13 @@ try {
     );
   execute("init");
   const snapshot = execute("snapshot").match(/Snapshot ([a-f0-9]{64})/)[1];
+  writeFileSync(path.join(project, "README.md"), "second version");
+  execute("snapshot");
+  execute("restore", snapshot);
+  assert.equal(
+    readFileSync(path.join(project, "README.md"), "utf8"),
+    "round trip",
+  );
   const destination = path.join(project, "exported");
   execute("export", snapshot, destination);
   assert.equal(
