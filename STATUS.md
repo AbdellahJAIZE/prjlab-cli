@@ -12,7 +12,7 @@ Last updated: 2026-09-18
 
 TypeScript CLI foundation: help/version, explicit failure for unimplemented
 operations, unit and installed-package checks, cross-platform GitHub CI.
-No npm release, networking, credentials or capture/restore yet. License pending.
+No npm release, networking, credentials or capture/restore yet. MIT license selected and included in package contents.
 
 ## Next
 

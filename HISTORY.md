@@ -1,5 +1,10 @@
 # History
 
+## 2026-09-18 — MIT license
+
+Owner selected MIT for the public CLI. Added LICENSE and package metadata,
+including the license in the packed artifact. npm publication remains disabled.
+
 ## 2026-09-18 — Cross-platform checkout correction
 
 Initial CI passed Linux/macOS and security scanning. Windows exposed Git CRLF
