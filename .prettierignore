@@ -1,0 +1,11 @@
+node_modules
+dist
+.next
+package-lock.json
+design-reference
+docs/planning
+apps/web/app/style.css
+apps/web/app/direction-02.css
+test-results
+playwright-report
+*.tsbuildinfo
