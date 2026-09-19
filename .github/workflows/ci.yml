@@ -28,9 +28,25 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci --ignore-scripts
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libsecret-1-0 gnome-keyring dbus
+      - run: npm rebuild keytar
       - run: npm run format:check
       - run: npm run typecheck
       - run: npm test
+      - if: runner.os == 'Linux'
+        run: dbus-run-session -- bash scripts/test-secure-store-linux.sh
+      - if: runner.os == 'Windows'
+        run: node scripts/test-secure-store.mjs
+      - if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          keychain="$RUNNER_TEMP/prjlab-test.keychain-db"
+          security create-keychain -p "" "$keychain"
+          security default-keychain -s "$keychain"
+          security unlock-keychain -p "" "$keychain"
+          trap 'security delete-keychain "$keychain"' EXIT
+          node scripts/test-secure-store.mjs
       - run: npm audit --audit-level=high
       - run: npm run test:package
   security:
