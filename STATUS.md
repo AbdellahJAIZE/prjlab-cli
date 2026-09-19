@@ -7,6 +7,8 @@ Last updated: 2026-09-19
 - STATUS.md: current state and next work.
 - HISTORY.md: work journal.
 - README.md: capabilities, local checks and license status.
+- contracts/README.md: implemented API contract, compatibility and limits.
+- contracts/SYNC-PROPOSAL.md: unimplemented remote sync semantics.
 
 ## Current state
 
@@ -17,9 +19,13 @@ path/link/conflict safeguards. No networking, credential storage or npm release.
 MIT license included in package contents.
 
 PR #8 restore fixture corrected; 28 local tests, type checks and packed install
-pass. Cross-platform CI must pass before merging.
+pass. GitHub run 35446115899 passed Linux/macOS/Windows quality and security.
+PR #8 merged as b5da653; local main updated.
 
 ## Next
 
-Define the public API contract, implement real browser authentication and scoped
-credential storage. Connect remote sync to the tested restore/recovery core.
+Public API contract and local snapshot schema added with 47 passing CLI tests.
+Platform validates actual account/sharing HTTP responses against the same schemas.
+Contract PR/CI pending. Next: bounded authenticated HTTP client, then real browser
+authentication and scoped credential storage. Remote storage/encryption remains
+unresolved; connect sync to the tested restore/recovery core after that decision.

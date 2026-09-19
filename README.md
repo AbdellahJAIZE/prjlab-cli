@@ -72,6 +72,13 @@ and scans for vulnerabilities and secrets. Package tests inspect the tarball,
 install it into an isolated directory and execute the installed CLI. No npm
 publishing workflow or registry credentials are configured.
 
+## API contract
+
+The [public development contract](contracts/README.md) describes implemented
+account/repository endpoints and the local snapshot format. A separate sync
+proposal marks remote storage and error semantics as unimplemented. Contract
+fixtures are checked here and against real HTTP responses in platform tests.
+
 ## Intended workflow
 
 Anyone will be able to install the released public npm package. Hosted operations
