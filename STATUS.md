@@ -26,6 +26,8 @@ PR #8 merged as b5da653; local main updated.
 
 Public API contract and local snapshot schema added with 47 passing CLI tests.
 Platform validates actual account/sharing HTTP responses against the same schemas.
-Contract PR/CI pending. Next: bounded authenticated HTTP client, then real browser
-authentication and scoped credential storage. Remote storage/encryption remains
+Contract PR #9 merged as c414d49 after cross-platform/security CI passed.
+Bounded HTTP transport implemented with 71 passing tests, including real local
+HTTP servers. Transport PR/CI pending. Next: real browser authentication and
+scoped credential storage. Remote storage/encryption remains
 unresolved; connect sync to the tested restore/recovery core after that decision.
