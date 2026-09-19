@@ -23,7 +23,7 @@ try {
   for (const f of pack.files)
     assert.match(
       f.path,
-      /^(dist\/[^/]+\.js|package\.json|README\.md|SECURITY\.md|LICENSE)$/,
+      /^(dist\/[^/]+\.js|package\.json|README\.md|SECURITY\.md|LOGIN\.md|LICENSE)$/,
     );
   const tarball = path.join(temp, pack.filename);
   execFileSync(
@@ -53,6 +53,21 @@ try {
     { encoding: "utf8" },
   ).trim();
   assert.equal(version, manifest.version);
+  // A packed CLI must explain missing auth configuration without native keychain loading.
+  const authEnv = { ...process.env };
+  for (const name of Object.keys(authEnv))
+    if (name.startsWith("PRJ_")) delete authEnv[name];
+  try {
+    execFileSync(
+      process.execPath,
+      [path.join(installed, "dist/bin.js"), "login"],
+      { encoding: "utf8", env: authEnv, stdio: "pipe" },
+    );
+    assert.fail("Unconfigured login unexpectedly succeeded");
+  } catch (error) {
+    assert.equal(error.status, 1);
+    assert.match(String(error.stderr), /Configure PRJ_SERVER/);
+  }
   const project = path.join(temp, "project");
   mkdirSync(project);
   writeFileSync(path.join(project, "README.md"), "round trip");

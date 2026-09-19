@@ -1,8 +1,8 @@
 # Remote sync proposal — not implemented
 
 These are proposed semantics for the first private sync API. They do not add
-routes to the implemented OpenAPI contract. Encryption, quotas and public
-visibility remain product decisions; do not upload real content based on this draft.
+routes to the implemented OpenAPI contract. Hosted encryption was selected on 2026-09-19. Quotas and public visibility remain
+product decisions; do not upload real content based on this draft.
 
 ## Identity and state
 
@@ -30,10 +30,11 @@ an overwrite silently. The CLI preserves its actual base until adoption succeeds
 6. Expire abandoned sessions and release reservations; clean unreferenced objects
    without deleting objects referenced by any committed version.
 
-Object identifiers refer to the uploaded bytes. Whether those bytes are plaintext
-protected by hosted encryption or client ciphertext is unresolved. Do not expose
-cross-account content existence through global dedup/missing-object queries.
-Manifest envelopes and key distribution must be specified after that decision.
+Object identifiers refer to the uploaded bytes. For the selected hosted model,
+files and manifests are readable by the authorized platform, sent over TLS and
+protected by hosted encryption at rest. Object digests refer to file bytes, not
+ciphertext. Do not expose cross-account content existence through global dedup
+or missing-object queries. Concrete storage/key configuration remains to implement.
 
 ## Retries and concurrency
 

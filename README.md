@@ -18,8 +18,10 @@ node dist/bin.js --version
 Implemented local commands: `prj init`, `prj status`, `prj snapshot`, and
 `prj export <snapshot-id> <new-directory>`, `prj restore <snapshot-id>`, and
 `prj recover`. Run them in your project directory.
-They read local project files only when requested; nothing is uploaded. Login,
-push, pull, clone and search still explicitly fail as unimplemented.
+They read local project files only when requested; nothing is uploaded.
+`prj login`, `prj whoami` and `prj logout` support configured identity applications
+and secure OS credentials; see [login setup](LOGIN.md). Live tenant setup is still
+pending. Push, pull, clone and search explicitly fail as unimplemented.
 
 ## Local snapshots
 
@@ -82,7 +84,7 @@ fixtures are checked here and against real HTTP responses in platform tests.
 ## HTTP transport foundation
 
 `ApiTransport` in `src/http.ts` is a library for future remote commands, not a
-login or sync command. Credentials must be scoped to the selected HTTPS origin.
+login or sync command. It now supports the login account check. Credentials must be scoped to the selected HTTPS origin.
 Explicit loopback HTTP is available only for local development. Redirects are
 rejected, cookies are not retained, and requests are never retried automatically.
 
@@ -91,7 +93,8 @@ are capped at 1 MiB with a 10-second default deadline covering headers and body.
 Callers can cancel requests. Errors contain fixed messages/status categories,
 not tokens, URLs, raw server errors or fetch causes. The result data is `unknown`:
 callers must validate it against the public contract before using it. This layer
-does not persist credentials, refresh tokens or enable remote commands.
+does not itself persist credentials or refresh tokens; the login layer handles
+those tasks. It does not enable sync commands.
 
 ## Intended workflow
 

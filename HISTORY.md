@@ -1,5 +1,18 @@
 # History
 
+## 2026-09-19 — CLI browser login and encrypted credential storage
+
+Implemented login/whoami/logout using MSAL authorization-code/PKCE, explicit
+loopback state/nonce checks, timeout/cancellation and API account verification
+before saving. Scoped OS encryption uses DPAPI/Keychain/Secret Service with no
+plaintext fallback. Save failures attempt verified restoration of the old cache.
+90 tests pass locally; native Linux save/read/delete passes without plaintext files.
+Types/format/packed install/audit pass. Actual MSAL nonce tests use controlled
+provider responses; live customer tenant issuance is not configured or verified.
+Native OS CI pending. Logout is local only; server-side revocation is still pending.
+Existing post-merge tracking edits preserved. Hosted storage decision reflected
+in sync proposal. No cloud resource or npm release changes.
+
 ## 2026-09-19 — Bounded authenticated HTTP transport
 
 Added ApiTransport with origin-scoped credentials, HTTPS enforcement, redirect
@@ -8,7 +21,8 @@ cancellation and fixed redacted error categories. No automatic retries or cookie
 persistence. Response data remains unknown until caller contract validation.
 71 tests pass, including real HTTP redirects, all error statuses, stalled headers/
 bodies, gzip expansion, malformed UTF-8/JSON, cancellation and connection failure.
-Types, formatting, packed install and audit pass. PR/CI pending.
+Types, formatting, packed install and audit pass. PR #10 merged as ba311c9
+after run 35447899328 passed Linux/macOS/Windows quality and security.
 CLI contract PR #9 merged as c414d49 after cross-platform/security CI passed.
 Login/push/pull/clone remain explicitly unavailable; no live credentials used.
 
