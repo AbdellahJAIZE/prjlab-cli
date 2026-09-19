@@ -1,6 +1,6 @@
 # PrjLab development API contract
 
-Version: 0.1.0-development. Canonical source: this public CLI repository's
+Version: 0.2.0-development. Canonical source: this public CLI repository's
 `contracts/` directory. MIT licensed. No private implementation is needed to
 consume it; the platform vendors the same files for integration testing.
 
@@ -55,7 +55,11 @@ outside this CLI-facing contract. No remote snapshot route is implemented yet.
 - HTTP 400/401/403/404/409/413/500/503 are documented. Error messages are for people,
   not stable machine codes. A client must not distinguish handle conflicts, quota
   conflicts or missing accounts by matching English text. Future sync needs codes.
-- No rate-limit behavior or storage quotas are implemented by this contract.
+- Binary object PUT/GET uses `/repositories/{id}/objects/{hash}`. PUT accepts raw
+  application/octet-stream and returns `{hash, bytes}`; GET returns bytes. SHA-256
+  must match the lowercase hash. Owners/writers upload; all members download.
+  Development limits are 5 MiB/object, 100 MiB/repository and 1,000 objects.
+  Repeated identical uploads are idempotent. No rate-limit policy is implemented.
 - Responses are private/no-store. Clients must bound response bytes and time,
   reject redirects carrying credentials, and avoid logging server error bodies.
 

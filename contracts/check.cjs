@@ -42,12 +42,28 @@ function response(method, pathname, status, value, input) {
   );
   const schema = definition.content?.["application/json"]?.schema;
   if (schema) validate(schema.$ref.split("/").at(-1), value);
-  else
+  else if (definition.content?.["application/octet-stream"]) {
+    assert.ok(Buffer.isBuffer(value), "Binary response must be a Buffer");
+    assert.ok(
+      value.length <=
+        definition.content["application/octet-stream"]["x-max-bytes"],
+    );
+  } else
     assert.ok(
       value === undefined || value === "",
       "No-content response has a body",
     );
   if (status < 400 && operation.requestBody) {
+    if (operation.requestBody.content["application/octet-stream"]) {
+      assert.ok(Buffer.isBuffer(input), "Binary request must be a Buffer");
+      assert.ok(
+        input.length <=
+          operation.requestBody.content["application/octet-stream"][
+            "x-max-bytes"
+          ],
+      );
+      return;
+    }
     validate(
       operation.requestBody.content["application/json"].schema.$ref
         .split("/")

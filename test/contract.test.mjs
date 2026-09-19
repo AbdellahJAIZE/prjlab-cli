@@ -18,7 +18,12 @@ test("every operation has a unique ID and a documented success schema", () => {
       ids.add(op.operationId);
       for (const [code, definition] of Object.entries(op.responses)) {
         if (code === "204") assert.equal(definition.content, undefined);
-        else {
+        else if (definition.content["application/octet-stream"]) {
+          assert.equal(
+            definition.content["application/octet-stream"]["x-max-bytes"],
+            5242880,
+          );
+        } else {
           const name = definition.content["application/json"].schema.$ref
             .split("/")
             .at(-1);
@@ -27,7 +32,7 @@ test("every operation has a unique ID and a documented success schema", () => {
       }
     }
   }
-  assert.equal(ids.size, 12);
+  assert.equal(ids.size, 14);
 });
 test("response contract rejects leaked fields, malformed identity and invented statuses", () => {
   assert.throws(() =>
@@ -80,4 +85,18 @@ test("version-1 snapshot schema and CLI agree on valid and malformed manifests",
   const traversal = { version: 1, entries: [{ ...entry, path: "../escape" }] };
   assert.equal(check(traversal), true);
   assert.throws(() => validateSnapshot(traversal));
+});
+
+test("binary contract checks response types and transfer bounds", () => {
+  const path =
+    "/api/v1/repositories/00000000-0000-0000-0000-000000000000/objects/" +
+    "0".repeat(64);
+  response("get", path, 200, Buffer.alloc(0));
+  response("put", path, 200, fixtures.ObjectReceipt, Buffer.alloc(0));
+  assert.throws(() => response("get", path, 200, "text"));
+  assert.throws(() => response("get", path, 200, Buffer.alloc(5242881)));
+  assert.throws(() => response("put", path, 200, fixtures.ObjectReceipt, {}));
+  assert.throws(() =>
+    response("put", path, 200, fixtures.ObjectReceipt, Buffer.alloc(5242881)),
+  );
 });
