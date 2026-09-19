@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PrjLab local snapshot version 1",
+  "description": "Local manifest only. Remote encryption/transport envelope remains undecided. Semantic portable-path, uniqueness and total-byte constraints are additionally enforced by the CLI.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "entries"],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "entries": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5242880
+          },
+          "kind": {
+            "enum": ["file", "instruction", "memory", "session"]
+          }
+        },
+        "required": ["path", "hash", "size", "kind"],
+        "additionalProperties": false
+      }
+    }
+  }
+}

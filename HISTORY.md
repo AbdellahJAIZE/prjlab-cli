@@ -1,5 +1,14 @@
 # History
 
+## 2026-09-19 — Versioned public API contract
+
+Added OpenAPI 3.1.1 for 12 implemented account/repository operations, synthetic
+fixtures, local snapshot JSON Schema and development-only Ajv checks. Documented
+current limits and a separate unimplemented sync/idempotency/error proposal.
+All 47 CLI tests, types, format, packed installation and dependency audit pass.
+Same fixtures validate real platform HTTP responses. No remote commands enabled.
+Contract PR/CI pending; runtime has no new dependencies.
+
 ## 2026-09-19 — Restore CI fixture correction
 
 Reproduced the failing ignored case-variant test from PR #8 on Linux. The
@@ -7,7 +16,8 @@ case-insensitive ignore rule excluded the incoming file before capture, so the
 two snapshots were identical and restore correctly did nothing. Moved the rule
 after capture, asserted actual incoming entries, and covered both leaf and parent
 directory collisions. No runtime behavior changed. All 28 local tests, type
-checks and packed installation checks pass; cross-platform CI pending.
+checks and packed installation checks pass. GitHub run 35446115899 passed all
+three operating systems and security; PR #8 merged as b5da653.
 
 ## 2026-09-18 — Conflict-safe restore and recovery
 

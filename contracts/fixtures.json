@@ -1,0 +1,105 @@
+{
+  "Account": {
+    "id": "22222222-2222-4222-8222-222222222222",
+    "handle": "alice"
+  },
+  "RegisterAccount": {
+    "handle": "alice"
+  },
+  "CreateRepository": {
+    "slug": "demo"
+  },
+  "UpdateRepository": {
+    "description": "Updated"
+  },
+  "RepositorySummary": {
+    "id": "11111111-1111-4111-8111-111111111111",
+    "slug": "demo",
+    "description": "Example repository",
+    "created_at": "2026-01-01T00:00:00.000Z",
+    "handle": "alice",
+    "role": "owner"
+  },
+  "RepositoryDetail": {
+    "id": "11111111-1111-4111-8111-111111111111",
+    "slug": "demo",
+    "description": "Example repository",
+    "created_at": "2026-01-01T00:00:00.000Z",
+    "handle": "alice",
+    "role": "owner",
+    "owner_id": "22222222-2222-4222-8222-222222222222"
+  },
+  "Repositories": [
+    {
+      "id": "11111111-1111-4111-8111-111111111111",
+      "slug": "demo",
+      "description": "Example repository",
+      "created_at": "2026-01-01T00:00:00.000Z",
+      "handle": "alice",
+      "role": "owner"
+    }
+  ],
+  "Invite": {
+    "handle": "bobby",
+    "role": "reader"
+  },
+  "SentInvitation": {
+    "id": "33333333-3333-4333-8333-333333333333",
+    "role": "reader",
+    "state": "pending",
+    "expires_at": "2026-01-08T00:00:00.000Z",
+    "handle": "bobby"
+  },
+  "InboxInvitation": {
+    "id": "33333333-3333-4333-8333-333333333333",
+    "role": "reader",
+    "expires_at": "2026-01-08T00:00:00.000Z",
+    "slug": "demo",
+    "handle": "alice"
+  },
+  "Member": {
+    "id": "22222222-2222-4222-8222-222222222222",
+    "handle": "bobby",
+    "role": "reader"
+  },
+  "PendingInvitation": {
+    "id": "33333333-3333-4333-8333-333333333333",
+    "handle": "bobby",
+    "role": "reader",
+    "expires_at": "2026-01-08T00:00:00.000Z"
+  },
+  "AcceptedInvitation": {
+    "repositoryId": "11111111-1111-4111-8111-111111111111"
+  },
+  "Error": {
+    "statusCode": 404,
+    "message": "Repository not found.",
+    "error": "Not Found"
+  },
+  "Inbox": [
+    {
+      "id": "33333333-3333-4333-8333-333333333333",
+      "role": "reader",
+      "expires_at": "2026-01-08T00:00:00.000Z",
+      "slug": "demo",
+      "handle": "alice"
+    }
+  ],
+  "Access": {
+    "members": [
+      {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "handle": "bobby",
+        "role": "reader"
+      }
+    ],
+    "invitations": [
+      {
+        "id": "33333333-3333-4333-8333-333333333333",
+        "handle": "bobby",
+        "role": "reader",
+        "expires_at": "2026-01-08T00:00:00.000Z"
+      }
+    ]
+  }
+}
