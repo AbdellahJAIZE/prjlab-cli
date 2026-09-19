@@ -16,7 +16,8 @@ node dist/bin.js --version
 ```
 
 Implemented local commands: `prj init`, `prj status`, `prj snapshot`, and
-`prj export <snapshot-id> <new-directory>`. Run them in your project directory.
+`prj export <snapshot-id> <new-directory>`, `prj restore <snapshot-id>`, and
+`prj recover`. Run them in your project directory.
 They read local project files only when requested; nothing is uploaded. Login,
 push, pull, clone and search still explicitly fail as unimplemented.
 
@@ -42,10 +43,21 @@ folders and unrelated projects are never scanned automatically.
 
 Current development limits: 1,000 files, 5 MiB per file, 100 MiB per snapshot.
 Symlinks, hardlinks, unsafe portable paths and case collisions are rejected.
-An exclusive `.prj/lock` prevents overlapping operations. After a crash, verify
-no PrjLab process is active before removing a stale lock. Interrupted exports
+An exclusive `.prj/lock` prevents overlapping operations. Interrupted exports
 leave their new partial directory for inspection and do not change the source
-snapshot. Pull/merge and automatic deletion are not implemented yet.
+snapshot.
+
+`restore` compares the current files, local baseline and requested snapshot. It
+preserves unrelated edits/untracked files, applies unchanged tracked deletions,
+and refuses conflicting edits before changing anything. File/directory type
+changes require manual reconciliation in this first version.
+
+A journal records the operation before writes. A failed restore rolls back; an
+interrupted process leaves a recoverable journal and does not advance HEAD.
+`recover` removes a lock only when its process is no longer running, then restores
+the prior state. It refuses to overwrite edits made after interruption. A journal
+left after a successful HEAD commit is safely cleared. Tests cover process exit,
+not power-loss durability. Remote pull/merge is not connected yet.
 
 ## Check changes
 
