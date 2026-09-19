@@ -1,6 +1,6 @@
 # CLI status
 
-Last updated: 2026-09-18
+Last updated: 2026-09-19
 
 ## Tracking map
 
@@ -15,6 +15,9 @@ operations, unit and installed-package checks, cross-platform GitHub CI.
 Local init/status/snapshot/export/restore/recover implemented with SHA-256 integrity checks and
 path/link/conflict safeguards. No networking, credential storage or npm release.
 MIT license included in package contents.
+
+PR #8 restore fixture corrected; 28 local tests, type checks and packed install
+pass. Cross-platform CI must pass before merging.
 
 ## Next
 

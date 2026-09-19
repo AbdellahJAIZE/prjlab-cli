@@ -161,18 +161,44 @@ test("same already-present incoming bytes do not conflict", async (t) => {
   assert.equal(await head(root), first.id);
   assert.equal(await readFile(path.join(root, "file.txt"), "utf8"), "old");
 });
-test("ignored case-variant files cannot be overwritten by restore", async (t) => {
-  const root = await fixture(t);
-  await writeFile(path.join(root, ".gitignore"), "TARGET.txt\n");
-  const first = await capture(root);
-  await writeFile(path.join(root, "target.txt"), "incoming");
-  const second = await capture(root);
-  await restoreSnapshot(root, first.id);
-  await writeFile(path.join(root, "TARGET.txt"), "ignored local");
-  await assert.rejects(restoreSnapshot(root, second.id), /case-variant/);
-  assert.equal(
-    await readFile(path.join(root, "TARGET.txt"), "utf8"),
-    "ignored local",
-  );
-  assert.equal(await head(root), first.id);
-});
+for (const { incoming, existing, rule } of [
+  { incoming: "target.txt", existing: "TARGET.txt", rule: "TARGET.txt" },
+  {
+    incoming: "folder/target.txt",
+    existing: "FOLDER/target.txt",
+    rule: "FOLDER/",
+  },
+]) {
+  test(`ignored case-variant ${existing} blocks restore before mutation`, async (t) => {
+    const root = await fixture(t);
+    const first = await capture(root);
+    await mkdir(path.dirname(path.join(root, incoming)), { recursive: true });
+    await writeFile(path.join(root, incoming), "incoming");
+    const second = await capture(root);
+    // Ignore matching is case-insensitive. Install the local rule only after
+    // capture, otherwise the incoming file never enters the target snapshot.
+    assert.deepEqual(
+      second.entries.map((entry) => entry.path),
+      [incoming],
+    );
+    assert.notEqual(second.id, first.id);
+    await restoreSnapshot(root, first.id);
+    if (incoming.includes("/"))
+      await rm(path.join(root, incoming.split("/")[0]), { recursive: true });
+    await writeFile(path.join(root, ".gitignore"), rule + "\n");
+    await mkdir(path.dirname(path.join(root, existing)), { recursive: true });
+    await writeFile(path.join(root, existing), "ignored local");
+    assert.deepEqual((await status(root)).added, [".gitignore"]);
+    await assert.rejects(restoreSnapshot(root, second.id), /case-variant/);
+    assert.equal(
+      await readFile(path.join(root, existing), "utf8"),
+      "ignored local",
+    );
+    assert.equal(
+      await readFile(path.join(root, ".gitignore"), "utf8"),
+      rule + "\n",
+    );
+    assert.equal(await head(root), first.id);
+    await assert.rejects(access(path.join(root, ".prj", "restore.json")));
+  });
+}
