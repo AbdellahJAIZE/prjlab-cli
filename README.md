@@ -79,6 +79,20 @@ account/repository endpoints and the local snapshot format. A separate sync
 proposal marks remote storage and error semantics as unimplemented. Contract
 fixtures are checked here and against real HTTP responses in platform tests.
 
+## HTTP transport foundation
+
+`ApiTransport` in `src/http.ts` is a library for future remote commands, not a
+login or sync command. Credentials must be scoped to the selected HTTPS origin.
+Explicit loopback HTTP is available only for local development. Redirects are
+rejected, cookies are not retained, and requests are never retried automatically.
+
+JSON requests are capped at 64 KiB; response reads, including decompressed bytes,
+are capped at 1 MiB with a 10-second default deadline covering headers and body.
+Callers can cancel requests. Errors contain fixed messages/status categories,
+not tokens, URLs, raw server errors or fetch causes. The result data is `unknown`:
+callers must validate it against the public contract before using it. This layer
+does not persist credentials, refresh tokens or enable remote commands.
+
 ## Intended workflow
 
 Anyone will be able to install the released public npm package. Hosted operations

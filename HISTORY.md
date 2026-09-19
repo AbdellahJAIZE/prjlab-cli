@@ -1,5 +1,17 @@
 # History
 
+## 2026-09-19 — Bounded authenticated HTTP transport
+
+Added ApiTransport with origin-scoped credentials, HTTPS enforcement, redirect
+refusal, 64 KiB requests, 1 MiB streamed/decompressed response cap, deadlines,
+cancellation and fixed redacted error categories. No automatic retries or cookie
+persistence. Response data remains unknown until caller contract validation.
+71 tests pass, including real HTTP redirects, all error statuses, stalled headers/
+bodies, gzip expansion, malformed UTF-8/JSON, cancellation and connection failure.
+Types, formatting, packed install and audit pass. PR/CI pending.
+CLI contract PR #9 merged as c414d49 after cross-platform/security CI passed.
+Login/push/pull/clone remain explicitly unavailable; no live credentials used.
+
 ## 2026-09-19 — Versioned public API contract
 
 Added OpenAPI 3.1.1 for 12 implemented account/repository operations, synthetic
