@@ -27,7 +27,9 @@ function server() {
   let tip = null;
   const versions = new Map(),
     objects = new Map(),
-    retries = new Map();
+    retries = new Map(),
+    uploads = new Map(),
+    beginRetries = new Map();
   return {
     loseReply: false,
     deny: false,
@@ -41,6 +43,54 @@ function server() {
     },
     async request(method, route, options) {
       if (this.deny) throw new TransportError("not_found");
+      if (route.endsWith("/uploads") && method === "POST") {
+        const body = options.body;
+        if (beginRetries.has(body.retryKey))
+          return {
+            status: 200,
+            data: structuredClone(
+              uploads.get(beginRetries.get(body.retryKey)).receipt,
+            ),
+          };
+        if (body.expectedParent !== tip)
+          throw new TransportError("conflict", 409);
+        const id = randomUUID(),
+          receipt = {
+            id,
+            status: "active",
+            expiresAt: new Date(Date.now() + 86400000).toISOString(),
+            version: null,
+          };
+        uploads.set(id, { receipt, body });
+        beginRetries.set(body.retryKey, id);
+        if (this.loseBeginReply) {
+          this.loseBeginReply = false;
+          throw new TransportError("network");
+        }
+        return { status: 200, data: structuredClone(receipt) };
+      }
+      if (route.includes("/uploads/")) {
+        const id = route.split("/uploads/")[1].split("/")[0],
+          upload = uploads.get(id);
+        if (method === "GET")
+          return { status: 200, data: structuredClone(upload.receipt) };
+        if (upload.receipt.status === "committed")
+          return {
+            status: 200,
+            data: {
+              id: upload.receipt.version,
+              parent: upload.body.expectedParent,
+            },
+          };
+        const result = await this.request(
+          "POST",
+          `/api/v1/repositories/${repo}/versions`,
+          { body: upload.body },
+        );
+        upload.receipt.status = "committed";
+        upload.receipt.version = result.data.id;
+        return result;
+      }
       if (method === "POST") {
         const body = options.body;
         if (retries.has(body.retryKey))
@@ -54,6 +104,11 @@ function server() {
         });
         tip = result.id;
         retries.set(body.retryKey, result);
+        for (const upload of uploads.values())
+          if (upload.body.retryKey === body.retryKey) {
+            upload.receipt.status = "committed";
+            upload.receipt.version = result.id;
+          }
         if (this.loseReply) {
           this.loseReply = false;
           throw new TransportError("network");
@@ -73,6 +128,7 @@ function server() {
       };
     },
     versions,
+    uploads,
   };
 }
 const state = (root) =>
@@ -235,4 +291,79 @@ test("interrupted remote adoption recovers even when local HEAD differs from rem
   await recover(root);
   assert.equal(await readFile(path.join(root, "note"), "utf8"), "base");
   assert.equal(await readFile(path.join(root, "local"), "utf8"), "keep");
+});
+
+test("lost begin reply reuses one reservation and the original saved snapshot", async (t) => {
+  const root = await workspace(t),
+    api = server();
+  await writeFile(path.join(root, "note"), "original");
+  api.loseBeginReply = true;
+  await assert.rejects(push(root, origin, repo, api, signal));
+  const saved = (await state(root)).pendingPush;
+  assert.equal(saved.protocol, "sessions");
+  assert.equal(saved.session, undefined);
+  await writeFile(path.join(root, "note"), "later");
+  await push(root, origin, repo, api, signal);
+  assert.equal(api.uploads.size, 1);
+  assert.equal(api.versions.size, 1);
+  assert.equal(await readFile(path.join(root, "note"), "utf8"), "later");
+});
+test("confirmed expiry rotates the retry key without changing snapshot or remote base", async (t) => {
+  const root = await workspace(t),
+    api = server();
+  await writeFile(path.join(root, "note"), "saved");
+  const object = api.object;
+  api.object = async () => {
+    throw new TransportError("network");
+  };
+  await assert.rejects(push(root, origin, repo, api, signal));
+  const saved = (await state(root)).pendingPush;
+  api.uploads.get(saved.session).receipt.status = "expired";
+  api.object = object;
+  await assert.rejects(push(root, origin, repo, api, signal), /session closed/);
+  const reset = await state(root);
+  assert.equal(reset.baseVersion, null);
+  assert.equal(reset.pendingPush.snapshot, saved.snapshot);
+  assert.notEqual(reset.pendingPush.retryKey, saved.retryKey);
+  assert.equal(reset.pendingPush.session, undefined);
+  await push(root, origin, repo, api, signal);
+  assert.equal(api.versions.size, 1);
+});
+test("a closed-session object conflict keeps the unknown commit outcome recoverable", async (t) => {
+  const root = await workspace(t),
+    api = server();
+  await writeFile(path.join(root, "note"), "saved");
+  const object = api.object;
+  api.object = async () => {
+    throw new TransportError("conflict", 409);
+  };
+  await assert.rejects(push(root, origin, repo, api, signal));
+  assert.ok((await state(root)).pendingPush.session);
+  api.object = object;
+  await push(root, origin, repo, api, signal);
+  assert.equal(api.versions.size, 1);
+});
+test("pre-session pending pushes retain their original legacy retry key", async (t) => {
+  const root = await workspace(t),
+    api = server();
+  await writeFile(path.join(root, "note"), "legacy");
+  const snapshot = await capture(root),
+    retryKey = randomUUID();
+  await writeFile(
+    path.join(root, ".prj/remote.json"),
+    JSON.stringify({
+      version: 1,
+      origin,
+      repository: repo,
+      baseVersion: null,
+      baseSnapshot: null,
+      pendingPush: { snapshot: snapshot.id, retryKey, parent: null },
+    }),
+  );
+  api.loseReply = true;
+  await assert.rejects(push(root, origin, repo, api, signal));
+  assert.equal((await state(root)).pendingPush.retryKey, retryKey);
+  await push(root, origin, repo, api, signal);
+  assert.equal(api.uploads.size, 0);
+  assert.equal(api.versions.size, 1);
 });

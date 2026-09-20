@@ -109,11 +109,15 @@ export class ApiTransport {
     hash: string,
     bytes?: Buffer,
     signal?: AbortSignal,
+    upload?: string,
   ): Promise<Buffer | { hash: string; bytes: number }> {
     if (
       !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(repository) ||
       !/^[a-f0-9]{64}$/.test(hash) ||
       !["GET", "PUT"].includes(method) ||
+      (upload !== undefined &&
+        (method !== "PUT" ||
+          !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(upload))) ||
       (method === "GET" && bytes !== undefined)
     )
       throw new TransportError("request");
@@ -126,7 +130,7 @@ export class ApiTransport {
       throw new TransportError("request");
     const result = await this.perform(
       method,
-      `/api/v1/repositories/${repository}/objects/${hash}`,
+      `/api/v1/repositories/${repository}/${upload ? `uploads/${upload}/` : ""}objects/${hash}`,
       {
         binaryBody: bytes === undefined ? undefined : Buffer.from(bytes),
         binaryResponse: method === "GET",

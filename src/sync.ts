@@ -17,6 +17,7 @@ export interface SyncApi {
     hash: string,
     bytes?: Buffer,
     signal?: AbortSignal,
+    upload?: string,
   ): Promise<Buffer | { hash: string; bytes: number }>;
 }
 interface Link {
@@ -25,7 +26,13 @@ interface Link {
   repository: string;
   baseVersion: string | null;
   baseSnapshot: string | null;
-  pendingPush?: { snapshot: string; retryKey: string; parent: string | null };
+  pendingPush?: {
+    snapshot: string;
+    retryKey: string;
+    parent: string | null;
+    protocol?: "sessions";
+    session?: string;
+  };
   pendingPull?: { snapshot: string; version: string };
 }
 const uuid = (v: unknown): v is string =>
@@ -74,7 +81,12 @@ function link(input: unknown, origin: string, repository: string): Link {
     v.pendingPush &&
     (!hash(v.pendingPush.snapshot) ||
       !uuid(v.pendingPush.retryKey) ||
-      v.pendingPush.parent !== v.baseVersion)
+      v.pendingPush.parent !== v.baseVersion ||
+      (v.pendingPush.protocol !== undefined &&
+        v.pendingPush.protocol !== "sessions") ||
+      (v.pendingPush.session !== undefined &&
+        (!uuid(v.pendingPush.session) ||
+          v.pendingPush.protocol !== "sessions")))
   )
     throw new ProjectError("Invalid pending push.");
   if (
@@ -103,6 +115,28 @@ function receipt(
     throw new TransportError("response");
   return v as { id: string | null; parent: string | null };
 }
+function uploadReceipt(input: unknown) {
+  const v = input as {
+    id: string;
+    status: string;
+    expiresAt: string;
+    version: string | null;
+  };
+  if (
+    !v ||
+    typeof v !== "object" ||
+    Array.isArray(v) ||
+    Object.keys(v).sort().join(",") !== "expiresAt,id,status,version" ||
+    !uuid(v.id) ||
+    !["active", "committed", "expired", "aborted"].includes(v.status) ||
+    typeof v.expiresAt !== "string" ||
+    !Number.isFinite(Date.parse(v.expiresAt)) ||
+    !(v.version === null || uuid(v.version)) ||
+    (v.status === "committed") !== (v.version !== null)
+  )
+    throw new TransportError("response");
+  return v;
+}
 export async function push(
   root: string,
   origin: string,
@@ -124,37 +158,104 @@ export async function push(
         snapshot: captured.id,
         retryKey: randomUUID(),
         parent: state.baseVersion,
+        protocol: "sessions",
       };
       await project.writeLink(state);
     }
     const pending = state.pendingPush,
       manifest = await project.manifest(pending.snapshot);
-    for (const entry of manifest.entries) {
-      signal.throwIfAborted();
-      await api.object(
-        "PUT",
-        repository,
-        entry.hash,
-        await project.bytes(entry),
-        signal,
-      );
-    }
     let response;
+    let canClearConflict = false;
     try {
-      response = await api.request(
-        "POST",
-        `/api/v1/repositories/${repository}/versions`,
-        {
-          body: {
-            expectedParent: pending.parent,
-            retryKey: pending.retryKey,
-            manifest,
+      if (pending.protocol === "sessions") {
+        const base = `/api/v1/repositories/${repository}/uploads`;
+        canClearConflict = !pending.session;
+        const current = pending.session
+          ? await api.request("GET", `${base}/${pending.session}`, { signal })
+          : await api.request("POST", base, {
+              body: {
+                expectedParent: pending.parent,
+                retryKey: pending.retryKey,
+                manifest,
+              },
+              signal,
+            });
+        canClearConflict = false;
+        const session = uploadReceipt(current.data);
+        if (
+          current.status !== 200 ||
+          (pending.session && pending.session !== session.id)
+        )
+          throw new TransportError("response");
+        pending.session = session.id;
+        await project.writeLink(state);
+        if (session.status === "committed") {
+          response = {
+            status: 200,
+            data: { id: session.version, parent: pending.parent },
+          };
+        } else if (
+          session.status === "expired" ||
+          session.status === "aborted"
+        ) {
+          // A checked terminal state rules out a successful publication. Persist a
+          // fresh key before the next invocation without changing snapshot/base.
+          pending.retryKey = randomUUID();
+          delete pending.session;
+          await project.writeLink(state);
+          throw new ProjectError(
+            "Upload session closed. Retry push to resume the saved snapshot with a fresh reservation.",
+          );
+        } else {
+          for (const entry of manifest.entries) {
+            signal.throwIfAborted();
+            await api.object(
+              "PUT",
+              repository,
+              entry.hash,
+              await project.bytes(entry),
+              signal,
+              session.id,
+            );
+          }
+          canClearConflict = true;
+          response = await api.request("POST", `${base}/${session.id}/commit`, {
+            signal,
+          });
+        }
+      } else {
+        // Old on-disk pushes may already have committed through the legacy API.
+        // Preserve their original retry namespace until that outcome is resolved.
+        for (const entry of manifest.entries) {
+          signal.throwIfAborted();
+          await api.object(
+            "PUT",
+            repository,
+            entry.hash,
+            await project.bytes(entry),
+            signal,
+          );
+        }
+        canClearConflict = true;
+        response = await api.request(
+          "POST",
+          `/api/v1/repositories/${repository}/versions`,
+          {
+            body: {
+              expectedParent: pending.parent,
+              retryKey: pending.retryKey,
+              manifest,
+            },
+            signal,
           },
-          signal,
-        },
-      );
+        );
+      }
     } catch (error) {
-      if (error instanceof TransportError && error.code === "conflict") {
+      if (
+        error instanceof TransportError &&
+        error.code === "conflict" &&
+        canClearConflict
+      ) {
         delete state.pendingPush;
         await project.writeLink(state);
       }
