@@ -138,5 +138,20 @@
     "code": "tip_conflict",
     "message": "Repository changed.",
     "tip": "00000000-0000-4000-8000-000000000001"
+  },
+  "VersionSummary": {
+    "id": "00000000-0000-4000-8000-000000000001",
+    "parent": null,
+    "createdAt": "2026-09-20T00:00:00.000Z"
+  },
+  "VersionPage": {
+    "items": [
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "parent": null,
+        "createdAt": "2026-09-20T00:00:00.000Z"
+      }
+    ],
+    "nextCursor": null
   }
 }

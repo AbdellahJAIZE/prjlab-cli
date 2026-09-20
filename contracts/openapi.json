@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "PrjLab account and private repository API",
-    "version": "0.3.0-development",
+    "version": "0.4.0-development",
     "description": "Account, private repository and bounded binary object operations. Version manifests and browser authorization redirects are outside this development contract.",
     "license": {
       "name": "MIT",
@@ -1825,6 +1825,113 @@
             }
           }
         }
+      },
+      "get": {
+        "operationId": "listVersions",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 256,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "description": "Opaque repository-scoped cursor from prior page. Newest first; at most50 items."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/repositories/{id}/versions/{version}": {
@@ -2749,6 +2856,58 @@
           },
           "error": {
             "type": "string"
+          }
+        }
+      },
+      "VersionSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "parent", "createdAt"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "parent": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "VersionPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["items", "nextCursor"],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/VersionSummary"
+            }
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256,
+                "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       }
