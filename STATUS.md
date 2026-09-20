@@ -23,23 +23,17 @@ quality and security checks. Durable pending operations preserve a truthful remo
 base independently of local snapshots. Recovery, conflicts, lost replies and safe
 clone destinations are tested; packed installation passes.
 
-History contract0.4.0 merged in PR16 as ad3bb05.111 CLI tests pass. The actual
-platform/PostgreSQL interoperability suite exercises this client in CI using a
-pinned public source commit; live identity issuance is still unverified.
+Contract0.5 mergedfb02b61. Session-aware push merged303cab2 (PR19) after
+Linux/macOS/Windows quality and security checks.117 tests and packed installation
+pass. The actual platform/PostgreSQL suite verifies lost successful begin/commit
+replies without duplicate sessions or versions. Live identity remains unverified.
 
 ## Next
 
-Upload-session lifecycle and reserved-quota support, coordinated with the private
-platform contract. Preserve current direct-transfer compatibility until that change
-is tested end to end. The overall implementation plan remains in the private project workspace.
+Storage reference inventory and crash-safe reclamation are private-platform work.
+The overall plan and exact current cross-repository checkpoint live in the owning
+project workspace. Keep legacy pending pushes recoverable during future upgrades.
 
-Live identity tenant verification, server-side device revocation, cloud operations
-and release gates remain open. No production deployment or npm publication.
+Live identity verification, server-side device revocation, cloud operations and
+release gates remain open. No production deployment or npm publication.
 Logout removes local credentials. Hosted encryption remains the selected model.
-
-## 2026-09-20 — Session-aware sync
-
-feat/session-sync: persisted session identity, begin/commit reply recovery,
-confirmed-expiry key rotation and old pending-push compatibility.117 tests pass;
-real platform PostgreSQL interoperability passes. Contract PR18 mergedfb02b61.
-CI/merge for CLI session adoption remain pending. Cleanup remains separate work.

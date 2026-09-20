@@ -1,5 +1,12 @@
 # History
 
+## 2026-09-20 — Session sync merged
+
+PR19 merged303cab2 after all three OS quality checks and security passed
+(CI35521438021).117 tests and packed installation pass. Public contract PR18
+mergedfb02b61. Real platform recovery verification uses source6e4ad58.
+Next implementation is platform reference inventory and crash-safe cleanup.
+
 ## 2026-09-20 — Sync and history contracts merged
 
 Sync PR15 mergedc74af43 after all cross-platform/security checks (run35480876319).
