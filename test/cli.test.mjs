@@ -6,7 +6,8 @@ import { readFileSync } from "node:fs";
 test("help describes actual capabilities", () => {
   const r = run([]);
   assert.equal(r.code, 0);
-  assert.match(r.stdout, /not implemented/);
+  assert.match(r.stdout, /push <repository-id>/);
+  assert.match(r.stdout, /Remote sync requires login/);
 });
 test("version matches package metadata", () => {
   assert.equal(

@@ -23,7 +23,7 @@ try {
   for (const f of pack.files)
     assert.match(
       f.path,
-      /^(dist\/[^/]+\.js|package\.json|README\.md|SECURITY\.md|LOGIN\.md|LICENSE)$/,
+      /^(dist\/[^/]+\.js|package\.json|README\.md|SECURITY\.md|LOGIN\.md|SYNC\.md|LICENSE)$/,
     );
   const tarball = path.join(temp, pack.filename);
   execFileSync(

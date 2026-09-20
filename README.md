@@ -108,3 +108,6 @@ Licensed under the [MIT License](LICENSE). The package remains marked private
 to prevent accidental npm publication until the namespace and release are ready.
 
 See SECURITY.md for private vulnerability reporting.
+
+Private development sync commands are documented in [SYNC.md](SYNC.md). Login and
+an existing repository UUID are required. Files upload only when push is invoked.

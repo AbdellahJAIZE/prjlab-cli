@@ -34,3 +34,10 @@ logout currently removes local credentials only. See LOGIN.md for setup/limits.
 Branch refactor/shared-manifest: portable validation extracted into src/manifest.ts;
 public0.3.0 contract adds version commit/tip/read. 98 tests pass. Platform uses
 byte-identical validator under MIT. CI and merge pending; CLI sync still pending.
+
+## 2026-09-20 sync checkpoint
+
+Branch feat/remote-sync: push/pull/clone wired to secure login and verified binary
+transport. Durable pending operations and remote base are independent of local
+capture HEAD.108 tests pass. Real platform interoperability and CI remain pending.
+See SYNC.md for supported behavior and limits.

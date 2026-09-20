@@ -1,3 +1,6 @@
+import { mkdir, lstat } from "node:fs/promises";
+import path from "node:path";
+import { initialize } from "./snapshot.js";
 import { randomUUID } from "node:crypto";
 import { withSync, ProjectError } from "./snapshot.js";
 import { TransportError } from "./http.js";
@@ -239,4 +242,35 @@ export async function pull(
     await project.writeLink(state);
     return { version: state.baseVersion, changed: adopted.changed };
   });
+}
+
+export async function clone(
+  destination: string,
+  origin: string,
+  repository: string,
+  api: SyncApi,
+  signal: AbortSignal,
+) {
+  if (!uuid(repository)) throw new ProjectError("Invalid repository ID.");
+  const target = path.resolve(destination);
+  let ancestor = path.dirname(target);
+  while (true) {
+    const info = await lstat(ancestor);
+    if (!info.isDirectory() || info.isSymbolicLink())
+      throw new ProjectError("Clone requires safe directory ancestors.");
+    const parent = path.dirname(ancestor);
+    if (parent === ancestor) break;
+    ancestor = parent;
+  }
+  // Check authorization before creating a destination; never replace an existing path.
+  const checked = await api.request(
+    "GET",
+    `/api/v1/repositories/${repository}/tip`,
+    { signal },
+  );
+  receipt(checked.data, true);
+  if (checked.status !== 200) throw new TransportError("response");
+  await mkdir(target, { mode: 0o700 });
+  await initialize(target);
+  return pull(target, origin, repository, api, signal);
 }

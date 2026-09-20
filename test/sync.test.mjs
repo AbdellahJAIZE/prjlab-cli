@@ -148,3 +148,46 @@ test("stale push leaves base unchanged and permits pull; mismatched remote is re
     /mismatched/,
   );
 });
+
+test("clone requires a new safe destination and preserves existing files", async (t) => {
+  const { clone } = await import("../dist/sync.js");
+  const a = await workspace(t),
+    api = server();
+  await writeFile(path.join(a, "note"), "shared");
+  await push(a, origin, repo, api, signal);
+  const parent = await mkdtemp(path.join(tmpdir(), "prj-clone-"));
+  t.after(() => rm(parent, { recursive: true, force: true }));
+  const destination = path.join(parent, "new");
+  await clone(destination, origin, repo, api, signal);
+  assert.equal(
+    await readFile(path.join(destination, "note"), "utf8"),
+    "shared",
+  );
+  await assert.rejects(clone(destination, origin, repo, api, signal));
+  assert.equal(
+    await readFile(path.join(destination, "note"), "utf8"),
+    "shared",
+  );
+});
+test("corrupt downloads and cancellation never mutate working files or advance remote base", async (t) => {
+  const a = await workspace(t),
+    b = await workspace(t),
+    api = server();
+  await writeFile(path.join(a, "note"), "base");
+  await push(a, origin, repo, api, signal);
+  await pull(b, origin, repo, api, signal);
+  const before = await state(b);
+  await writeFile(path.join(a, "note"), "next");
+  await push(a, origin, repo, api, signal);
+  const original = api.object;
+  api.object = async () => Buffer.from("corrupt");
+  await assert.rejects(pull(b, origin, repo, api, signal), /integrity/);
+  api.object = original;
+  assert.equal(await readFile(path.join(b, "note"), "utf8"), "base");
+  assert.deepEqual(await state(b), before);
+  await assert.rejects(pull(b, origin, repo, api, AbortSignal.abort()));
+  assert.equal(await readFile(path.join(b, "note"), "utf8"), "base");
+  assert.equal((await state(b)).baseVersion, before.baseVersion);
+  await pull(b, origin, repo, api, signal);
+  assert.equal(await readFile(path.join(b, "note"), "utf8"), "next");
+});
