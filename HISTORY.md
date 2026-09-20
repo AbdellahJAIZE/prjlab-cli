@@ -1,5 +1,12 @@
 # History
 
+## 2026-09-20 — Sync and history contracts merged
+
+Sync PR15 mergedc74af43 after all cross-platform/security checks (run35480876319).
+History contract PR16 mergedad3bb05 after run35504875599 passed.111 CLI tests.
+Private platform also verifies real HTTP/PostgreSQL interoperability.
+Next: upload-session/reservation protocol; live identity and release still gated.
+
 ## 2026-09-20 — Authenticated remote sync and recovery
 
 PR15 adds push/pull/clone with durable pending operations, separate remote base

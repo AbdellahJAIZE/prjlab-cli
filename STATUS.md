@@ -18,17 +18,21 @@ Local snapshot/export/restore/recovery, secure login and bounded JSON/binary
 transport are merged. Login storage passed native Linux/macOS/Windows CI.
 Shared portable manifest validator and version contract are merged (PR13).
 
-PR15 feat/remote-sync implements authenticated push/pull/clone.109 local tests
-pass, including lost replies, local conflicts and interrupted recovery with a
-separate remote baseline. Packed installation passes. Real platform/PostgreSQL
-interoperability passes21 tests with no skips. Latest cross-platform CI pending.
-The previous macOS test failure used a symlinked temporary fixture; it now uses
-a resolved path while clone retains its symlink rejection policy.
+Private push/pull/clone merged in PR15 as c74af43 after all Linux/macOS/Windows
+quality and security checks. Durable pending operations preserve a truthful remote
+base independently of local snapshots. Recovery, conflicts, lost replies and safe
+clone destinations are tested; packed installation passes.
+
+History contract0.4.0 merged in PR16 as ad3bb05.111 CLI tests pass. The actual
+platform/PostgreSQL interoperability suite exercises this client in CI using a
+pinned public source commit; live identity issuance is still unverified.
 
 ## Next
 
-Verify latest PR15 CI and companion platform PR12, then merge. Keep tracking
-source pins accurate. Live identity tenant verification, history pagination,
-upload sessions/cleanup, cloud operations and release gates remain open.
-No production deployment or npm release. Logout deletes local credentials;
-server-side device revocation remains pending. Hosted encryption selected.
+Upload-session lifecycle and reserved-quota support, coordinated with the private
+platform contract. Preserve current direct-transfer compatibility until that change
+is tested end to end. The overall implementation plan remains in the private project workspace.
+
+Live identity tenant verification, server-side device revocation, cloud operations
+and release gates remain open. No production deployment or npm publication.
+Logout removes local credentials. Hosted encryption remains the selected model.
