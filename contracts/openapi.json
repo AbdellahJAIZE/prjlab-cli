@@ -2,8 +2,8 @@
   "openapi": "3.1.1",
   "info": {
     "title": "PrjLab account and private repository API",
-    "version": "0.4.0-development",
-    "description": "Account, private repository and bounded binary object operations. Version manifests and browser authorization redirects are outside this development contract.",
+    "version": "0.5.0-development",
+    "description": "Private repositories, bounded encrypted objects, immutable versions and resumable upload sessions.",
     "license": {
       "name": "MIT",
       "identifier": "MIT"
@@ -1502,6 +1502,16 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -2036,6 +2046,625 @@
                   "$ref": "#/components/schemas/VersionError"
                 }
               }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/repositories/{id}/uploads": {
+      "post": {
+        "operationId": "beginUpload",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-access": "Current owner or writer; session actor only",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionCommit"
+              }
+            }
+          }
+        },
+        "description": "Reserve distinct required content for24h. Identical retry keys return the same session; closed uncommitted keys retained at least7days from creation. No implicit renewal."
+      }
+    },
+    "/api/v1/repositories/{id}/uploads/{upload}": {
+      "get": {
+        "operationId": "getUpload",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "upload",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-access": "Current owner or writer; session actor only"
+      },
+      "delete": {
+        "operationId": "abortUpload",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "upload",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-access": "Current owner or writer; session actor only"
+      }
+    },
+    "/api/v1/repositories/{id}/uploads/{upload}/commit": {
+      "post": {
+        "operationId": "commitUpload",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "upload",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-access": "Current owner or writer; session actor only"
+      }
+    },
+    "/api/v1/repositories/{id}/uploads/{upload}/objects/{hash}": {
+      "put": {
+        "operationId": "putUploadObject",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "upload",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "hash",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          }
+        },
+        "x-required-access": "Current owner or writer; session actor only",
+        "requestBody": {
+          "required": true,
+          "description": "Raw bytes, including empty files; SHA-256 must match hash. Maximum 5 MiB. No compressed content encoding.",
+          "content": {
+            "application/octet-stream": {
+              "schema": {},
+              "x-max-bytes": 5242880
             }
           }
         }
@@ -2837,7 +3466,9 @@
               "invalid_manifest",
               "idempotency_conflict",
               "tip_conflict",
-              "incomplete_upload"
+              "incomplete_upload",
+              "upload_expired",
+              "upload_closed"
             ]
           },
           "tip": {
@@ -2903,6 +3534,35 @@
                 "type": "string",
                 "maxLength": 256,
                 "pattern": "^[A-Za-z0-9_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "UploadReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status", "expiresAt", "version"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "enum": ["active", "committed", "aborted", "expired"]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
               },
               {
                 "type": "null"

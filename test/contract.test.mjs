@@ -32,7 +32,7 @@ test("every operation has a unique ID and a documented success schema", () => {
       }
     }
   }
-  assert.equal(ids.size, 18);
+  assert.equal(ids.size, 23);
 });
 test("response contract rejects leaked fields, malformed identity and invented statuses", () => {
   assert.throws(() =>
