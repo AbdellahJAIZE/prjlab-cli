@@ -1,36 +1,34 @@
 # CLI status
 
-Last updated: 2026-09-19
+Last updated: 2026-09-20
 
 ## Tracking map
 
 - STATUS.md: current state and next work.
 - HISTORY.md: work journal.
-- README.md: capabilities, local checks and license status.
-- LOGIN.md: CLI authentication configuration, secure storage and recovery.
-- contracts/README.md: implemented API contract, compatibility and limits.
-- contracts/SYNC-PROPOSAL.md: unimplemented remote sync semantics.
+- README.md: capabilities and local checks.
+- LOGIN.md: identity setup, secure storage and recovery.
+- SYNC.md: private push/pull/clone and retry behavior.
+- contracts/README.md: public development API and compatibility.
+- contracts/SYNC-PROPOSAL.md: original proposal; remaining sessions/cleanup work.
 
 ## Current state
 
-Local snapshots/export/restore/recovery and bounded HTTP transport are merged.
-Login/whoami/logout are implemented on feat/cli-login and being verified. They
-use PKCE/state/nonce, API account verification, scoped encrypted OS credentials,
-silent refresh and local credential deletion. No plaintext token fallback.
-90 local tests pass, including actual MSAL nonce checks with controlled responses.
-Native Linux Secret Service save/load/delete passes in an isolated keyring.
-Cross-platform native-store CI is being added; live identity tenant is unconfigured.
+Local snapshot/export/restore/recovery, secure login and bounded JSON/binary
+transport are merged. Login storage passed native Linux/macOS/Windows CI.
+Shared portable manifest validator and version contract are merged (PR13).
+
+PR15 feat/remote-sync implements authenticated push/pull/clone.109 local tests
+pass, including lost replies, local conflicts and interrupted recovery with a
+separate remote baseline. Packed installation passes. Real platform/PostgreSQL
+interoperability passes21 tests with no skips. Latest cross-platform CI pending.
+The previous macOS test failure used a symlinked temporary fixture; it now uses
+a resolved path while clone retains its symlink rejection policy.
 
 ## Next
 
-Finish login CI and merge. Then implement private upload/storage/version APIs and
-connect CLI push/clone/pull. Hosted encryption selected on 2026-09-19; no E2EE key
-sharing is required. Public visibility, cloud budget and release gates remain open.
-No production deployment or npm release. Server-side device revocation is pending;
-logout currently removes local credentials only. See LOGIN.md for setup/limits.
-
-## 2026-09-20 version contract checkpoint
-
-Branch refactor/shared-manifest: portable validation extracted into src/manifest.ts;
-public0.3.0 contract adds version commit/tip/read. 98 tests pass. Platform uses
-byte-identical validator under MIT. CI and merge pending; CLI sync still pending.
+Verify latest PR15 CI and companion platform PR12, then merge. Keep tracking
+source pins accurate. Live identity tenant verification, history pagination,
+upload sessions/cleanup, cloud operations and release gates remain open.
+No production deployment or npm release. Logout deletes local credentials;
+server-side device revocation remains pending. Hosted encryption selected.

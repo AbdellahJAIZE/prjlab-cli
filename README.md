@@ -21,7 +21,8 @@ Implemented local commands: `prj init`, `prj status`, `prj snapshot`, and
 They read local project files only when requested; nothing is uploaded.
 `prj login`, `prj whoami` and `prj logout` support configured identity applications
 and secure OS credentials; see [login setup](LOGIN.md). Live tenant setup is still
-pending. Push, pull, clone and search explicitly fail as unimplemented.
+pending. Private push/pull/clone are implemented; see [sync instructions](SYNC.md).
+Public search is not implemented.
 
 ## Local snapshots
 
@@ -108,3 +109,6 @@ Licensed under the [MIT License](LICENSE). The package remains marked private
 to prevent accidental npm publication until the namespace and release are ready.
 
 See SECURITY.md for private vulnerability reporting.
+
+Private development sync commands are documented in [SYNC.md](SYNC.md). Login and
+an existing repository UUID are required. Files upload only when push is invoked.

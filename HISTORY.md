@@ -1,5 +1,14 @@
 # History
 
+## 2026-09-20 — Authenticated remote sync and recovery
+
+PR15 adds push/pull/clone with durable pending operations, separate remote base
+and staged three-way adoption.109 tests pass; packed install passes. Actual
+platform/PostgreSQL tests verify interoperation. Fixed recovery journal to retain
+original local HEAD independently from remote merge baseline; fault injection
+proves recovery. macOS clone fixture resolves its system temporary-path symlink.
+Latest CI and merge pending. See SYNC.md for limits and unfinished work.
+
 ## 2026-09-20 — Shared validation and immutable version contract
 
 Extracted existing portable manifest validation without changing snapshot exports.

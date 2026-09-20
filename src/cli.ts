@@ -11,7 +11,7 @@ export function run(args: readonly string[]): {
   ) {
     return {
       code: 0,
-      stdout: `PrjLab CLI (development)\n\nUsage: prj [login | logout | whoami | init | status | snapshot | export <id> <new-directory> | restore <id> | recover | --help | --version]\n\nPush, pull and clone are not implemented yet. Login requires registered application settings and secure OS storage.\nLocal commands read project files only when requested. Nothing is uploaded.\n`,
+      stdout: `PrjLab CLI (development)\n\nUsage: prj [login | logout | whoami | push <repository-id> | pull <repository-id> | clone <repository-id> <new-directory> | init | status | snapshot | export <id> <new-directory> | restore <id> | recover | --help | --version]\n\nRemote sync requires login, configured application settings and an existing repository UUID.\nLocal commands never upload. Push uploads selected project files to the configured server.\n`,
       stderr: "",
     };
   }

@@ -16,7 +16,8 @@
     "README.md",
     "SECURITY.md",
     "LICENSE",
-    "LOGIN.md"
+    "LOGIN.md",
+    "SYNC.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",

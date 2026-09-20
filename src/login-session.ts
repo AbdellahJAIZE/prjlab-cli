@@ -225,6 +225,17 @@ export class LoginSession {
     }
   }
   async whoami(signal: AbortSignal): Promise<AccountResult> {
+    return (await this.refresh(signal)).account;
+  }
+  async transport(signal: AbortSignal): Promise<ApiTransport> {
+    const result = await this.refresh(signal);
+    return new ApiTransport(
+      this.config.origin,
+      { origin: this.config.origin, accessToken: result.token },
+      { allowLoopbackHttp: this.config.allowLoopbackHttp },
+    );
+  }
+  private async refresh(signal: AbortSignal) {
     try {
       const raw = await this.store.load();
       if (!raw) throw new LoginError("Not signed in. Run prj login.");
@@ -254,7 +265,7 @@ export class LoginSession {
       const verified = await this.verified(result, signal);
       signal.throwIfAborted();
       await this.save(client, result);
-      return verified;
+      return { account: verified, token: result.accessToken };
     } catch (error) {
       if (signal.aborted)
         throw new LoginError("Account check was cancelled or timed out.");
