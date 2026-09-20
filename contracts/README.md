@@ -1,6 +1,6 @@
 # PrjLab development API contract
 
-Version: 0.2.0-development. Canonical source: this public CLI repository's
+Version: 0.3.0-development. Canonical source: this public CLI repository's
 `contracts/` directory. MIT licensed. No private implementation is needed to
 consume it; the platform vendors the same files for integration testing.
 
@@ -33,7 +33,7 @@ An inaccessible repository returns 404; a member without a required role gets 40
 | POST /invitations/{id}/accept                        | 200 repositoryId        | intended recipient                                |
 
 Browser authorization redirect endpoints and health endpoints are intentionally
-outside this CLI-facing contract. No remote snapshot route is implemented yet.
+outside this CLI-facing contract. Version commit, tip and immutable manifest reads are defined below.
 
 ## Current behavior and limits
 
@@ -91,3 +91,20 @@ must never execute automatically.
 
 Do not copy private platform plans into this directory. Neither a contract change
 nor a green fixture test establishes live identity/storage availability.
+
+## Immutable versions
+
+POST `/repositories/{id}/versions` accepts `{expectedParent, retryKey, manifest}`.
+Both IDs are UUIDs; expectedParent is null for an empty repository. It returns
+`{id, parent}` with HTTP200 for creation or identical retry. GET `/repositories/{id}/tip`
+returns `{id,parent}` (both null initially); GET `/repositories/{id}/versions/{version}`
+returns `{id,parent,manifest}`. Owners/writers commit; current members read.
+
+Manifest semantics come from MIT-licensed `src/manifest.ts`, shared by the CLI and
+platform. Normalized manifest limit:60KiB; enclosing request:64KiB; maximum1000
+versions per repository (development limits). Encrypted manifests are separate
+from file-object quota. Retry keys are scoped to actor/repository and retained
+for version lifetime. Changed replay data conflicts; revocation precedes replay.
+A stale expected parent returns409 tip_conflict. Incomplete references return409
+incomplete_upload. History pagination, upload sessions and full CLI sync remain
+unimplemented. No public visibility or production storage promise is implied.

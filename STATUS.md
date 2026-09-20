@@ -28,3 +28,9 @@ connect CLI push/clone/pull. Hosted encryption selected on 2026-09-19; no E2EE k
 sharing is required. Public visibility, cloud budget and release gates remain open.
 No production deployment or npm release. Server-side device revocation is pending;
 logout currently removes local credentials only. See LOGIN.md for setup/limits.
+
+## 2026-09-20 version contract checkpoint
+
+Branch refactor/shared-manifest: portable validation extracted into src/manifest.ts;
+public0.3.0 contract adds version commit/tip/read. 98 tests pass. Platform uses
+byte-identical validator under MIT. CI and merge pending; CLI sync still pending.

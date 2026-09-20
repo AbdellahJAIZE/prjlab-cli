@@ -1,5 +1,11 @@
 # History
 
+## 2026-09-20 — Shared validation and immutable version contract
+
+Extracted existing portable manifest validation without changing snapshot exports.
+Added version0.3.0 API request/receipt/tip/detail/error schemas and fixtures.
+98 tests pass. Commits f748492 and2ad1535; CI pending.
+
 ## 2026-09-19 — CLI browser login and encrypted credential storage
 
 Implemented login/whoami/logout using MSAL authorization-code/PKCE, explicit
