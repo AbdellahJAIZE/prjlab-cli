@@ -64,7 +64,8 @@ export function validateSnapshot(input: unknown): Snapshot {
       !Number.isSafeInteger(e.size) ||
       (e.size as number) < 0 ||
       (e.size as number) > MAX_FILE ||
-      !["file", "instruction", "memory", "session"].includes(String(e.kind)) ||
+      typeof e.kind !== "string" ||
+      !["file", "instruction", "memory", "session"].includes(e.kind) ||
       Object.keys(e).some((k) => !["path", "hash", "size", "kind"].includes(k))
     )
       throw new ProjectError("Invalid or duplicate snapshot entry.");

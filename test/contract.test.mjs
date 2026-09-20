@@ -100,3 +100,13 @@ test("binary contract checks response types and transfer bounds", () => {
     response("put", path, 200, fixtures.ObjectReceipt, Buffer.alloc(5242881)),
   );
 });
+
+test("semantic manifest validation rejects coerced entry kinds", () => {
+  const entry = {
+    path: "note.txt",
+    hash: "0".repeat(64),
+    size: 0,
+    kind: ["file"],
+  };
+  assert.throws(() => validateSnapshot({ version: 1, entries: [entry] }));
+});
