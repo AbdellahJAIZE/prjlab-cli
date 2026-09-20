@@ -105,5 +105,38 @@
   "ObjectReceipt": {
     "hash": "0000000000000000000000000000000000000000000000000000000000000000",
     "bytes": 0
+  },
+  "Manifest": {
+    "version": 1,
+    "entries": []
+  },
+  "VersionReceipt": {
+    "id": "00000000-0000-4000-8000-000000000001",
+    "parent": null
+  },
+  "VersionTip": {
+    "id": null,
+    "parent": null
+  },
+  "VersionDetail": {
+    "id": "00000000-0000-4000-8000-000000000001",
+    "parent": null,
+    "manifest": {
+      "version": 1,
+      "entries": []
+    }
+  },
+  "VersionCommit": {
+    "expectedParent": null,
+    "retryKey": "00000000-0000-4000-8000-000000000001",
+    "manifest": {
+      "version": 1,
+      "entries": []
+    }
+  },
+  "VersionError": {
+    "code": "tip_conflict",
+    "message": "Repository changed.",
+    "tip": "00000000-0000-4000-8000-000000000001"
   }
 }

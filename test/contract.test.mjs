@@ -32,7 +32,7 @@ test("every operation has a unique ID and a documented success schema", () => {
       }
     }
   }
-  assert.equal(ids.size, 14);
+  assert.equal(ids.size, 17);
 });
 test("response contract rejects leaked fields, malformed identity and invented statuses", () => {
   assert.throws(() =>
@@ -99,4 +99,14 @@ test("binary contract checks response types and transfer bounds", () => {
   assert.throws(() =>
     response("put", path, 200, fixtures.ObjectReceipt, Buffer.alloc(5242881)),
   );
+});
+
+test("semantic manifest validation rejects coerced entry kinds", () => {
+  const entry = {
+    path: "note.txt",
+    hash: "0".repeat(64),
+    size: 0,
+    kind: ["file"],
+  };
+  assert.throws(() => validateSnapshot({ version: 1, entries: [entry] }));
 });
