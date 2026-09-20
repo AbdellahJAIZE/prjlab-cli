@@ -1,0 +1,150 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { mkdtemp, rm, readFile, writeFile, unlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { initialize, capture } from "../dist/snapshot.js";
+import { push, pull } from "../dist/sync.js";
+import { TransportError } from "../dist/http.js";
+const origin = "https://prj.example",
+  repo = randomUUID(),
+  signal = new AbortController().signal;
+async function workspace(t) {
+  const root = await mkdtemp(path.join(tmpdir(), "prj-sync-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await initialize(root);
+  return root;
+}
+function server() {
+  let tip = null;
+  const versions = new Map(),
+    objects = new Map(),
+    retries = new Map();
+  return {
+    loseReply: false,
+    deny: false,
+    async object(method, repo, hash, bytes) {
+      if (this.deny) throw new TransportError("not_found");
+      if (method === "PUT") {
+        objects.set(hash, Buffer.from(bytes));
+        return { hash, bytes: bytes.length };
+      }
+      return Buffer.from(objects.get(hash));
+    },
+    async request(method, route, options) {
+      if (this.deny) throw new TransportError("not_found");
+      if (method === "POST") {
+        const body = options.body;
+        if (retries.has(body.retryKey))
+          return { status: 200, data: retries.get(body.retryKey) };
+        if (body.expectedParent !== tip)
+          throw new TransportError("conflict", 409);
+        const result = { id: randomUUID(), parent: tip };
+        versions.set(result.id, {
+          ...result,
+          manifest: structuredClone(body.manifest),
+        });
+        tip = result.id;
+        retries.set(body.retryKey, result);
+        if (this.loseReply) {
+          this.loseReply = false;
+          throw new TransportError("network");
+        }
+        return { status: 200, data: result };
+      }
+      if (route.endsWith("/tip"))
+        return {
+          status: 200,
+          data: tip
+            ? { id: tip, parent: versions.get(tip).parent }
+            : { id: null, parent: null },
+        };
+      return {
+        status: 200,
+        data: structuredClone(versions.get(route.split("/").at(-1))),
+      };
+    },
+    versions,
+  };
+}
+const state = (root) =>
+  readFile(path.join(root, ".prj/remote.json"), "utf8").then(JSON.parse);
+test("two workspaces push/pull edits and deletions while preserving unrelated local work", async (t) => {
+  const a = await workspace(t),
+    b = await workspace(t),
+    api = server();
+  await writeFile(path.join(a, "note.txt"), "first");
+  await push(a, origin, repo, api, signal);
+  await pull(b, origin, repo, api, signal);
+  assert.equal(await readFile(path.join(b, "note.txt"), "utf8"), "first");
+  await writeFile(path.join(b, "local.txt"), "keep");
+  await writeFile(path.join(a, "note.txt"), "second");
+  await push(a, origin, repo, api, signal);
+  await pull(b, origin, repo, api, signal);
+  assert.equal(await readFile(path.join(b, "note.txt"), "utf8"), "second");
+  assert.equal(await readFile(path.join(b, "local.txt"), "utf8"), "keep");
+  await unlink(path.join(a, "note.txt"));
+  await push(a, origin, repo, api, signal);
+  await pull(b, origin, repo, api, signal);
+  await assert.rejects(readFile(path.join(b, "note.txt")));
+  assert.equal(await readFile(path.join(b, "local.txt"), "utf8"), "keep");
+});
+test("lost commit response retries the original snapshot once and preserves later local edits", async (t) => {
+  const root = await workspace(t),
+    api = server();
+  await writeFile(path.join(root, "note"), "original");
+  api.loseReply = true;
+  await assert.rejects(push(root, origin, repo, api, signal));
+  assert.ok((await state(root)).pendingPush);
+  await writeFile(path.join(root, "note"), "later");
+  await push(root, origin, repo, api, signal);
+  assert.equal(api.versions.size, 1);
+  assert.equal(await readFile(path.join(root, "note"), "utf8"), "later");
+  assert.equal((await state(root)).pendingPush, undefined);
+  await push(root, origin, repo, api, signal);
+  assert.equal(api.versions.size, 2);
+});
+test("local capture never becomes a false remote baseline; conflict preserves files and remote base", async (t) => {
+  const a = await workspace(t),
+    b = await workspace(t),
+    api = server();
+  await writeFile(path.join(a, "note"), "base");
+  await push(a, origin, repo, api, signal);
+  await pull(b, origin, repo, api, signal);
+  const before = await state(b);
+  await writeFile(path.join(b, "note"), "local edit");
+  await capture(b);
+  await writeFile(path.join(a, "note"), "remote edit");
+  await push(a, origin, repo, api, signal);
+  await assert.rejects(pull(b, origin, repo, api, signal), /conflict/);
+  assert.equal(await readFile(path.join(b, "note"), "utf8"), "local edit");
+  assert.equal((await state(b)).baseVersion, before.baseVersion);
+  api.deny = true;
+  await assert.rejects(pull(b, origin, repo, api, signal));
+  assert.equal(await readFile(path.join(b, "note"), "utf8"), "local edit");
+  api.deny = false;
+  await writeFile(path.join(b, "note"), "base");
+  await pull(b, origin, repo, api, signal);
+  assert.equal(await readFile(path.join(b, "note"), "utf8"), "remote edit");
+});
+test("stale push leaves base unchanged and permits pull; mismatched remote is rejected", async (t) => {
+  const a = await workspace(t),
+    b = await workspace(t),
+    api = server();
+  await push(a, origin, repo, api, signal);
+  await pull(b, origin, repo, api, signal);
+  const before = await state(b);
+  await push(a, origin, repo, api, signal);
+  await assert.rejects(
+    push(b, origin, repo, api, signal),
+    (e) => e.code === "conflict",
+  );
+  assert.equal((await state(b)).baseVersion, before.baseVersion);
+  assert.equal((await state(b)).pendingPush, undefined);
+  await pull(b, origin, repo, api, signal);
+  await assert.rejects(
+    pull(b, "https://other.example", repo, api, signal),
+    /mismatched/,
+  );
+});

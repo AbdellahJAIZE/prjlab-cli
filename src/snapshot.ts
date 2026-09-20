@@ -499,86 +499,93 @@ export async function restoreSnapshot(
   checkpoint: () => Promise<void> = async () => {},
 ) {
   const { base, meta } = await state(root);
-  return locked(meta, async () => {
-    const target = await load(meta, id),
-      baselineId = await head(meta),
-      baseline = baselineId
-        ? await load(meta, baselineId)
-        : { version: 1 as const, entries: [] };
-    const before = new Map(baseline.entries.map((e) => [e.path, e])),
-      after = new Map(target.entries.map((e) => [e.path, e]));
-    // Catch portable collisions between untouched local and incoming names as well.
-    const localSnapshot = await scan(base);
-    const localFolded = new Map(
-      localSnapshot.entries.map((e) => [e.path.toLowerCase(), e.path]),
-    );
-    for (const entry of target.entries) {
-      const collision = localFolded.get(entry.path.toLowerCase());
-      if (collision && collision !== entry.path)
-        throw new ProjectError(
-          "Restore conflicts with an existing case-variant path.",
-        );
-      await object(meta, entry);
-    }
-    const changes: Change[] = [];
-    for (const name of [
-      ...new Set([...before.keys(), ...after.keys()]),
-    ].sort()) {
-      const previous = before.get(name) ?? null,
-        incoming = after.get(name) ?? null;
-      if (same(previous, incoming)) continue;
-      const local = await current(base, name);
-      if (same(local, incoming)) continue;
-      if (!same(local, previous))
-        throw new ProjectError(
-          "Restore conflicts with local edits or untracked files. Nothing was changed.",
-        );
-      if (local) {
-        const data = await readSafe(path.join(base, name), MAX_FILE);
-        await store(meta, { path: name, ...local, kind: "file" }, data);
-      }
-      changes.push({
-        path: name,
-        before: local,
-        after: incoming ? { hash: incoming.hash, size: incoming.size } : null,
-      });
-    }
-    if (!changes.length) {
-      await atomic(path.join(meta, "HEAD"), id + "\n");
-      return { changed: 0 };
-    }
-    const journal: Journal = {
-      version: 1,
-      base: baselineId,
-      target: id,
-      changes,
-    };
-    await atomic(path.join(meta, "restore.json"), JSON.stringify(journal));
-    try {
-      for (const change of changes) {
-        if (!same(await current(base, change.path), change.before))
-          throw new ProjectError("Working files changed during restore.");
-        await writeChange(base, meta, change.path, change.after);
-        await checkpoint();
-      }
-      // Commit only after every planned write/deletion succeeds.
-      await atomic(path.join(meta, "HEAD"), id + "\n");
-    } catch (error) {
-      try {
-        await rollback(base, meta, journal);
-      } catch {
-        throw new ProjectError(
-          "Restore interrupted and needs recovery. The baseline was not advanced. Run prj recover.",
-        );
-      }
+  return locked(meta, () => restoreLocked(base, meta, id, checkpoint));
+}
+async function restoreLocked(
+  base: string,
+  meta: string,
+  id: string,
+  checkpoint: () => Promise<void>,
+  baselineOverride?: string | null,
+) {
+  const target = await load(meta, id),
+    baselineId =
+      baselineOverride === undefined ? await head(meta) : baselineOverride,
+    baseline = baselineId
+      ? await load(meta, baselineId)
+      : { version: 1 as const, entries: [] };
+  const before = new Map(baseline.entries.map((e) => [e.path, e])),
+    after = new Map(target.entries.map((e) => [e.path, e]));
+  // Catch portable collisions between untouched local and incoming names as well.
+  const localSnapshot = await scan(base);
+  const localFolded = new Map(
+    localSnapshot.entries.map((e) => [e.path.toLowerCase(), e.path]),
+  );
+  for (const entry of target.entries) {
+    const collision = localFolded.get(entry.path.toLowerCase());
+    if (collision && collision !== entry.path)
       throw new ProjectError(
-        "Restore failed and was rolled back. The baseline was not advanced.",
+        "Restore conflicts with an existing case-variant path.",
+      );
+    await object(meta, entry);
+  }
+  const changes: Change[] = [];
+  for (const name of [...new Set([...before.keys(), ...after.keys()])].sort()) {
+    const previous = before.get(name) ?? null,
+      incoming = after.get(name) ?? null;
+    if (same(previous, incoming)) continue;
+    const local = await current(base, name);
+    if (same(local, incoming)) continue;
+    if (!same(local, previous))
+      throw new ProjectError(
+        "Restore conflicts with local edits or untracked files. Nothing was changed.",
+      );
+    if (local) {
+      const data = await readSafe(path.join(base, name), MAX_FILE);
+      await store(meta, { path: name, ...local, kind: "file" }, data);
+    }
+    changes.push({
+      path: name,
+      before: local,
+      after: incoming ? { hash: incoming.hash, size: incoming.size } : null,
+    });
+  }
+  if (!changes.length) {
+    await atomic(path.join(meta, "HEAD"), id + "\n");
+    return { changed: 0 };
+  }
+  const journal: Journal = {
+    version: 1,
+    base: baselineId,
+    target: id,
+    changes,
+  };
+  await atomic(path.join(meta, "restore.json"), JSON.stringify(journal));
+  try {
+    for (const change of changes) {
+      if (!same(await current(base, change.path), change.before))
+        throw new ProjectError("Working files changed during restore.");
+      await writeChange(base, meta, change.path, change.after);
+      await checkpoint();
+    }
+    // Commit only after every planned write/deletion succeeds.
+    await atomic(path.join(meta, "HEAD"), id + "\n");
+  } catch (error) {
+    try {
+      await rollback(base, meta, journal);
+    } catch {
+      throw new ProjectError(
+        "Restore interrupted and needs recovery. The baseline was not advanced. Run prj recover.",
       );
     }
-    await unlink(path.join(meta, "restore.json"));
-    return { changed: changes.length };
-  });
+    throw new ProjectError(
+      "Restore failed and was rolled back. The baseline was not advanced.",
+    );
+  }
+  await unlink(path.join(meta, "restore.json"));
+  return { changed: changes.length };
 }
+
 function validateJournal(value: unknown): Journal {
   if (!value || typeof value !== "object")
     throw new ProjectError("Invalid recovery journal.");
@@ -645,5 +652,71 @@ export async function recover(root: string) {
       return { recovered: true };
     },
     true,
+  );
+}
+
+/** One project lock covers remote staging, workspace adoption and link updates. */
+export async function withSync<T>(
+  root: string,
+  work: (project: {
+    readLink: () => Promise<unknown>;
+    writeLink: (value: unknown) => Promise<void>;
+    capture: () => Promise<{ id: string; manifest: Snapshot }>;
+    manifest: (id: string) => Promise<Snapshot>;
+    bytes: (entry: Entry) => Promise<Buffer>;
+    stage: (
+      input: unknown,
+      fetchObject: (entry: Entry) => Promise<Buffer>,
+    ) => Promise<string>;
+    adopt: (
+      id: string,
+      baseline: string | null,
+    ) => Promise<{ changed: number }>;
+  }) => Promise<T>,
+): Promise<T> {
+  const { base, meta } = await state(root);
+  return locked(meta, () =>
+    work({
+      readLink: async () =>
+        (await statOrMissing(path.join(meta, "remote.json")))
+          ? JSON.parse(
+              (await readSafe(path.join(meta, "remote.json"), 4096)).toString(
+                "utf8",
+              ),
+            )
+          : null,
+      writeLink: async (value) => {
+        const json = JSON.stringify(value);
+        if (Buffer.byteLength(json) > 4096)
+          throw new ProjectError("Remote state exceeds limit.");
+        await atomic(path.join(meta, "remote.json"), json);
+      },
+      capture: async () => {
+        const manifest = await scan(base, (entry, data) =>
+          store(meta, entry, data),
+        );
+        const json = JSON.stringify(manifest),
+          id = digest(Buffer.from(json));
+        await atomic(path.join(meta, "snapshots", id + ".json"), json);
+        return { id, manifest };
+      },
+      manifest: (id) => load(meta, id),
+      bytes: (entry) => object(meta, entry),
+      stage: async (input, fetchObject) => {
+        const manifest = validateSnapshot(input);
+        for (const entry of manifest.entries) {
+          const bytes = await fetchObject(entry);
+          if (bytes.length !== entry.size || digest(bytes) !== entry.hash)
+            throw new ProjectError("Remote object integrity failed.");
+          await store(meta, entry, bytes);
+        }
+        const json = JSON.stringify(manifest),
+          id = digest(Buffer.from(json));
+        await atomic(path.join(meta, "snapshots", id + ".json"), json);
+        return id;
+      },
+      adopt: (id, baseline) =>
+        restoreLocked(base, meta, id, async () => {}, baseline),
+    }),
   );
 }
