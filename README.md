@@ -21,7 +21,8 @@ Implemented local commands: `prj init`, `prj status`, `prj snapshot`, and
 They read local project files only when requested; nothing is uploaded.
 `prj login`, `prj whoami` and `prj logout` support configured identity applications
 and secure OS credentials; see [login setup](LOGIN.md). Live tenant setup is still
-pending. Push, pull, clone and search explicitly fail as unimplemented.
+pending. Private push/pull/clone are implemented; see [sync instructions](SYNC.md).
+Public search is not implemented.
 
 ## Local snapshots
 
