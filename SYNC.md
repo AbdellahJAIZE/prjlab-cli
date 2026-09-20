@@ -31,7 +31,8 @@ Pending push records retain a retry key and exact captured snapshot. If a commit
 reply is lost, retry the same push: it completes the original snapshot without a
 second server version. Later local edits remain untouched; push again to upload
 them. An unknown push outcome blocks pull until the push is resolved. A definitive
-409 conflict clears the pending push and preserves the old base so pull can run.
+begin/commit conflict clears the pending push and preserves the old base so pull can run.
+An object-transfer conflict retains pending state until session status resolves it.
 
 Pending pull records permit adoption to resume after a local metadata write
 failure. Current remote access is checked before resuming. Interrupted filesystem
@@ -46,6 +47,14 @@ with saved retry state. No automatic background sync, retries or credential logg
 Development limits:5MiB/file,100MiB aggregate snapshot,1000 entries; normalized
 remote manifest60KiB within64KiB request; repository object/version quotas also
 apply. Repositories can fill with historical or uncommitted objects. Upload
-sessions, quota reclamation, history pagination and cloud storage remain pending.
+sessions now reserve space before transfer. Quota reclamation and cloud storage
+remain pending.
 Do not call this production-ready. Live External ID issuance still needs a real
 tenant verification; automated sync tests use isolated synthetic identities.
+
+New pushes persist an upload-session retry key before networking, then persist the
+returned session ID before transferring bytes. A lost begin reply reuses the same
+key. A lost commit reply reads session status and adopts its original version.
+Only a confirmed expired/aborted session permits a fresh retry key; retry push to
+resume the same saved snapshot. No automatic renewal or abort command is included.
+Old pending pushes keep their legacy publication retry key until resolved.

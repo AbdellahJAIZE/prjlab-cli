@@ -101,3 +101,10 @@ all supported systems test identical source line endings.
 Added TypeScript entry point, help/version behavior, explicit unsupported-command
 errors, unit tests, isolated packed-package test and Linux/macOS/Windows CI.
 No platform code or private design files included. License/release remain pending.
+
+## 2026-09-20 — Session-aware sync
+
+feat/session-sync: persisted session identity, begin/commit reply recovery,
+confirmed-expiry key rotation and old pending-push compatibility.117 tests pass;
+real platform PostgreSQL interoperability passes. Contract PR18 mergedfb02b61.
+CI/merge for CLI session adoption remain pending. Cleanup remains separate work.

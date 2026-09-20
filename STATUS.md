@@ -36,3 +36,10 @@ is tested end to end. The overall implementation plan remains in the private pro
 Live identity tenant verification, server-side device revocation, cloud operations
 and release gates remain open. No production deployment or npm publication.
 Logout removes local credentials. Hosted encryption remains the selected model.
+
+## 2026-09-20 — Session-aware sync
+
+feat/session-sync: persisted session identity, begin/commit reply recovery,
+confirmed-expiry key rotation and old pending-push compatibility.117 tests pass;
+real platform PostgreSQL interoperability passes. Contract PR18 mergedfb02b61.
+CI/merge for CLI session adoption remain pending. Cleanup remains separate work.

@@ -356,3 +356,35 @@ test("binary uploads reject forged receipts and cancellation", async (t) => {
     fails("cancelled"),
   );
 });
+
+test("session binary uploads validate the session ID and preserve digest checks", async (t) => {
+  const { randomUUID, createHash } = await import("node:crypto");
+  const repo = randomUUID(),
+    upload = randomUUID(),
+    bytes = Buffer.from("session bytes"),
+    hash = createHash("sha256").update(bytes).digest("hex");
+  const origin = await server(t, async (req, res) => {
+    assert.equal(
+      req.url,
+      `/api/v1/repositories/${repo}/uploads/${upload}/objects/${hash}`,
+    );
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    assert.deepEqual(Buffer.concat(chunks), bytes);
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ hash, bytes: bytes.length }));
+  });
+  const api = client(origin);
+  assert.deepEqual(
+    await api.object("PUT", repo, hash, bytes, undefined, upload),
+    { hash, bytes: bytes.length },
+  );
+  await assert.rejects(
+    api.object("PUT", repo, hash, bytes, undefined, "../escape"),
+    fails("request"),
+  );
+  await assert.rejects(
+    api.object("GET", repo, hash, undefined, undefined, upload),
+    fails("request"),
+  );
+});
