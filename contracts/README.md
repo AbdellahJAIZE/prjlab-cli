@@ -1,6 +1,6 @@
 # PrjLab development API contract
 
-Version: 0.3.0-development. Canonical source: this public CLI repository's
+Version: 0.4.0-development. Canonical source: this public CLI repository's
 `contracts/` directory. MIT licensed. No private implementation is needed to
 consume it; the platform vendors the same files for integration testing.
 
@@ -106,5 +106,8 @@ versions per repository (development limits). Encrypted manifests are separate
 from file-object quota. Retry keys are scoped to actor/repository and retained
 for version lifetime. Changed replay data conflicts; revocation precedes replay.
 A stale expected parent returns409 tip_conflict. Incomplete references return409
-incomplete_upload. History pagination, upload sessions and full CLI sync remain
-unimplemented. No public visibility or production storage promise is implied.
+incomplete_upload. Upload sessions remain unimplemented. CLI push/pull/clone are documented in SYNC.md. No public visibility or production storage promise is implied.
+
+GET `/repositories/{id}/versions` returns `{items,nextCursor}` with at most50
+newest-first summaries (`id,parent,createdAt`). Pass returned opaque cursor as
+`before` for older results. Current membership is required on every page.
