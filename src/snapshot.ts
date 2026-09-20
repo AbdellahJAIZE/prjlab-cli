@@ -509,8 +509,9 @@ async function restoreLocked(
   baselineOverride?: string | null,
 ) {
   const target = await load(meta, id),
+    originalHead = await head(meta),
     baselineId =
-      baselineOverride === undefined ? await head(meta) : baselineOverride,
+      baselineOverride === undefined ? originalHead : baselineOverride,
     baseline = baselineId
       ? await load(meta, baselineId)
       : { version: 1 as const, entries: [] };
@@ -556,7 +557,7 @@ async function restoreLocked(
   }
   const journal: Journal = {
     version: 1,
-    base: baselineId,
+    base: originalHead,
     target: id,
     changes,
   };
@@ -671,6 +672,7 @@ export async function withSync<T>(
     adopt: (
       id: string,
       baseline: string | null,
+      checkpoint?: () => Promise<void>,
     ) => Promise<{ changed: number }>;
   }) => Promise<T>,
 ): Promise<T> {
@@ -715,8 +717,8 @@ export async function withSync<T>(
         await atomic(path.join(meta, "snapshots", id + ".json"), json);
         return id;
       },
-      adopt: (id, baseline) =>
-        restoreLocked(base, meta, id, async () => {}, baseline),
+      adopt: (id, baseline, checkpoint = async () => {}) =>
+        restoreLocked(base, meta, id, checkpoint, baseline),
     }),
   );
 }

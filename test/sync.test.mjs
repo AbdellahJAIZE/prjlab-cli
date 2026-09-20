@@ -1,6 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, readFile, writeFile, unlink } from "node:fs/promises";
+import {
+  mkdtemp,
+  rm,
+  readFile,
+  writeFile,
+  unlink,
+  realpath,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -155,7 +162,9 @@ test("clone requires a new safe destination and preserves existing files", async
     api = server();
   await writeFile(path.join(a, "note"), "shared");
   await push(a, origin, repo, api, signal);
-  const parent = await mkdtemp(path.join(tmpdir(), "prj-clone-"));
+  const parent = await realpath(
+    await mkdtemp(path.join(tmpdir(), "prj-clone-")),
+  );
   t.after(() => rm(parent, { recursive: true, force: true }));
   const destination = path.join(parent, "new");
   await clone(destination, origin, repo, api, signal);
@@ -190,4 +199,40 @@ test("corrupt downloads and cancellation never mutate working files or advance r
   assert.equal((await state(b)).baseVersion, before.baseVersion);
   await pull(b, origin, repo, api, signal);
   assert.equal(await readFile(path.join(b, "note"), "utf8"), "next");
+});
+
+test("interrupted remote adoption recovers even when local HEAD differs from remote base", async (t) => {
+  const { withSync, recover } = await import("../dist/snapshot.js"),
+    { createHash } = await import("node:crypto");
+  const root = await workspace(t);
+  await writeFile(path.join(root, "note"), "base");
+  const base = await capture(root);
+  await writeFile(path.join(root, "local"), "keep");
+  const local = await capture(root);
+  const bytes = Buffer.from("remote"),
+    hash = createHash("sha256").update(bytes).digest("hex");
+  await assert.rejects(
+    withSync(root, async (project) => {
+      const target = await project.stage(
+        {
+          version: 1,
+          entries: [{ path: "note", hash, size: bytes.length, kind: "file" }],
+        },
+        async () => bytes,
+      );
+      await project.adopt(target, base.id, async () => {
+        await writeFile(path.join(root, "note"), "external interference");
+        throw new Error("injected");
+      });
+    }),
+    /needs recovery/,
+  );
+  assert.equal(
+    (await readFile(path.join(root, ".prj/HEAD"), "utf8")).trim(),
+    local.id,
+  );
+  await writeFile(path.join(root, "note"), "remote");
+  await recover(root);
+  assert.equal(await readFile(path.join(root, "note"), "utf8"), "base");
+  assert.equal(await readFile(path.join(root, "local"), "utf8"), "keep");
 });
