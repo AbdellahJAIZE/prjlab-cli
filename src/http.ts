@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 /** Bounded transport only. Callers must validate response data against the API contract. */
 export type TransportCode =
   | "configuration"
@@ -102,10 +103,74 @@ export class ApiTransport {
     )
       throw new TransportError("configuration");
   }
+  async object(
+    method: "GET" | "PUT",
+    repository: string,
+    hash: string,
+    bytes?: Buffer,
+    signal?: AbortSignal,
+  ): Promise<Buffer | { hash: string; bytes: number }> {
+    if (
+      !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(repository) ||
+      !/^[a-f0-9]{64}$/.test(hash) ||
+      !["GET", "PUT"].includes(method) ||
+      (method === "GET" && bytes !== undefined)
+    )
+      throw new TransportError("request");
+    if (
+      method === "PUT" &&
+      (!Buffer.isBuffer(bytes) ||
+        bytes.length > 5 * 1024 * 1024 ||
+        createHash("sha256").update(bytes).digest("hex") !== hash)
+    )
+      throw new TransportError("request");
+    const result = await this.perform(
+      method,
+      `/api/v1/repositories/${repository}/objects/${hash}`,
+      {
+        binaryBody: bytes === undefined ? undefined : Buffer.from(bytes),
+        binaryResponse: method === "GET",
+        signal,
+      },
+    );
+    if (result.status !== 200)
+      throw new TransportError("response", result.status);
+    if (method === "GET") {
+      if (
+        !Buffer.isBuffer(result.data) ||
+        createHash("sha256").update(result.data).digest("hex") !== hash
+      )
+        throw new TransportError("response", result.status);
+      return result.data;
+    }
+    const receipt = result.data as Record<string, unknown> | null;
+    if (
+      !receipt ||
+      Array.isArray(receipt) ||
+      typeof receipt !== "object" ||
+      receipt.hash !== hash ||
+      receipt.bytes !== bytes!.length ||
+      Object.keys(receipt).sort().join(",") !== "bytes,hash"
+    )
+      throw new TransportError("response", result.status);
+    return { hash, bytes: bytes!.length };
+  }
   async request(
     method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
     route: string,
     options: { body?: unknown; signal?: AbortSignal } = {},
+  ) {
+    return this.perform(method, route, options);
+  }
+  private async perform(
+    method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
+    route: string,
+    options: {
+      body?: unknown;
+      signal?: AbortSignal;
+      binaryBody?: Buffer;
+      binaryResponse?: boolean;
+    } = {},
   ): Promise<{ status: number; data: unknown }> {
     // No arbitrary URLs, percent-encoded path tricks, queries or redirects.
     if (
@@ -115,7 +180,8 @@ export class ApiTransport {
       (method === "GET" && options.body !== undefined)
     )
       throw new TransportError("request");
-    let body: string | undefined;
+    let body: string | Buffer | undefined = options.binaryBody;
+    const limit = options.binaryResponse ? 5 * 1024 * 1024 : this.#limit;
     try {
       if (options.body !== undefined) {
         body = JSON.stringify(options.body);
@@ -140,10 +206,19 @@ export class ApiTransport {
         method,
         headers: {
           Authorization: `Bearer ${this.#token}`,
-          Accept: "application/json",
-          ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+          Accept: options.binaryResponse
+            ? "application/octet-stream"
+            : "application/json",
+          ...(body === undefined
+            ? {}
+            : {
+                "Content-Type":
+                  options.binaryBody !== undefined
+                    ? "application/octet-stream"
+                    : "application/json",
+              }),
         },
-        body,
+        body: Buffer.isBuffer(body) ? new Uint8Array(body) : body,
         redirect: "manual",
         credentials: "omit",
         cache: "no-store",
@@ -168,11 +243,13 @@ export class ApiTransport {
       if (response.status === 204) return { status: 204, data: undefined };
       const length = response.headers.get("content-length");
       if (
-        !/^application\/json(?:\s*;|$)/i.test(
-          response.headers.get("content-type") ?? "",
-        ) ||
+        !(
+          options.binaryResponse
+            ? /^application\/octet-stream(?:\s*;|$)/i
+            : /^application\/json(?:\s*;|$)/i
+        ).test(response.headers.get("content-type") ?? "") ||
         (length !== null &&
-          (!/^\d+$/.test(length) || Number(length) > this.#limit)) ||
+          (!/^\d+$/.test(length) || Number(length) > limit)) ||
         !response.body
       )
         throw new TransportError("response", response.status);
@@ -183,10 +260,11 @@ export class ApiTransport {
         const { done, value } = await reader.read();
         if (done) break;
         size += value.byteLength;
-        if (size > this.#limit)
-          throw new TransportError("response", response.status);
+        if (size > limit) throw new TransportError("response", response.status);
         chunks.push(value);
       }
+      if (options.binaryResponse)
+        return { status: response.status, data: Buffer.concat(chunks) };
       try {
         const text = new TextDecoder("utf-8", { fatal: true }).decode(
           Buffer.concat(chunks),

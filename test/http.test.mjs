@@ -273,3 +273,86 @@ test("connection failure is redacted", async (t) => {
     fails("network"),
   );
 });
+
+test("binary transfers preserve bytes and verify digest and receipt", async (t) => {
+  const { createHash } = await import("node:crypto");
+  const bytes = Buffer.from([0, 255, 1, 128]),
+    hash = createHash("sha256").update(bytes).digest("hex"),
+    repo = "00000000-0000-4000-8000-000000000001";
+  const origin = await server(t, async (req, res) => {
+    assert.equal(req.headers.authorization, `Bearer ${token}`);
+    if (req.method === "PUT") {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      assert.deepEqual(Buffer.concat(chunks), bytes);
+      assert.equal(req.headers["content-type"], "application/octet-stream");
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ hash, bytes: bytes.length }));
+    } else {
+      res.setHeader("Content-Type", "application/octet-stream");
+      res.end(bytes);
+    }
+  });
+  const api = client(origin);
+  assert.deepEqual(await api.object("PUT", repo, hash, bytes), {
+    hash,
+    bytes: bytes.length,
+  });
+  assert.deepEqual(await api.object("GET", repo, hash), bytes);
+  await assert.rejects(
+    api.object("PUT", repo, hash, Buffer.from("wrong")),
+    fails("request"),
+  );
+  await assert.rejects(api.object("GET", "../escape", hash), fails("request"));
+});
+test("binary downloads reject corruption, wrong content type and oversized decompressed data", async (t) => {
+  const { createHash } = await import("node:crypto"),
+    repo = "00000000-0000-4000-8000-000000000001";
+  const empty = createHash("sha256").update(Buffer.alloc(0)).digest("hex");
+  for (const scenario of ["corrupt", "type", "large", "empty", "redirect"]) {
+    const origin = await server(t, (req, res) => {
+      if (scenario === "redirect") {
+        res.writeHead(302, { Location: "https://example.com" });
+        res.end();
+        return;
+      }
+      res.setHeader(
+        "Content-Type",
+        scenario === "type" ? "text/plain" : "application/octet-stream",
+      );
+      if (scenario === "large") {
+        res.setHeader("Content-Encoding", "gzip");
+        res.end(gzipSync(Buffer.alloc(5 * 1024 * 1024 + 1)));
+      } else
+        res.end(scenario === "empty" ? Buffer.alloc(0) : Buffer.from("bad"));
+    });
+    if (scenario === "empty")
+      assert.deepEqual(
+        await client(origin).object("GET", repo, empty),
+        Buffer.alloc(0),
+      );
+    else
+      await assert.rejects(
+        client(origin).object("GET", repo, empty),
+        fails(scenario === "redirect" ? "redirect" : "response"),
+      );
+  }
+});
+test("binary uploads reject forged receipts and cancellation", async (t) => {
+  const { createHash } = await import("node:crypto"),
+    repo = "00000000-0000-4000-8000-000000000001",
+    bytes = Buffer.alloc(0),
+    hash = createHash("sha256").update(bytes).digest("hex");
+  const origin = await server(t, (req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ hash, bytes: 1 }));
+  });
+  await assert.rejects(
+    client(origin).object("PUT", repo, hash, bytes),
+    fails("response"),
+  );
+  await assert.rejects(
+    client(origin).object("GET", repo, hash, undefined, AbortSignal.abort()),
+    fails("cancelled"),
+  );
+});
