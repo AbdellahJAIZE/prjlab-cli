@@ -160,9 +160,7 @@
     "manifest": {
       "version": 1,
       "entries": []
-    },
-    "message": "Add design principles to memory",
-    "createdAt": "2026-09-20T00:00:00.000Z"
+    }
   },
   "VersionCommit": {
     "expectedParent": null,

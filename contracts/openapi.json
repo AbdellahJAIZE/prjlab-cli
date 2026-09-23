@@ -3448,7 +3448,7 @@
       "VersionDetail": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "parent", "manifest", "message", "createdAt"],
+        "required": ["id", "parent", "manifest"],
         "properties": {
           "id": {
             "type": "string",
@@ -3467,15 +3467,6 @@
           },
           "manifest": {
             "$ref": "#/components/schemas/Manifest"
-          },
-          "message": {
-            "type": "string",
-            "maxLength": 200,
-            "pattern": "^[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]*$"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
           }
         }
       },
