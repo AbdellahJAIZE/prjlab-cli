@@ -1,9 +1,24 @@
 {
   "name": "prjlab-cli",
-  "version": "0.0.0-development",
-  "private": true,
-  "description": "PrjLab CLI foundation; not released.",
+  "version": "0.1.0",
+  "description": "PrjLab command-line client: push, pull and clone your projects with their context.",
   "license": "MIT",
+  "homepage": "https://prjlab.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AbdellahJAIZE/prjlab-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/AbdellahJAIZE/prjlab-cli/issues"
+  },
+  "keywords": [
+    "prjlab",
+    "cli",
+    "claude-code",
+    "project-context",
+    "sync",
+    "snapshot"
+  ],
   "type": "module",
   "engines": {
     "node": ">=22 <23"
