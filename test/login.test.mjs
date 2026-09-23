@@ -313,6 +313,33 @@ test("config rejects unsafe origins, provider hosts, secrets and unscoped auth",
       readLoginConfig({ ...env, PRJ_SERVER: "https://second.example" }),
     ),
   );
+  // Invalid overrides never fall back to the hosted defaults.
+  assert.throws(
+    () => readLoginConfig({ PRJ_SERVER: "http://prjlab.com" }),
+    /Configure/,
+  );
+});
+test("without settings the CLI targets the hosted PrjLab service", () => {
+  const hosted = readLoginConfig({});
+  assert.equal(hosted.origin, "https://prjlab.com");
+  assert.equal(hosted.tenantId, "b7c0ef89-ea39-404f-ac7c-3737960bcb9e");
+  assert.equal(
+    hosted.authority,
+    "https://b7c0ef89-ea39-404f-ac7c-3737960bcb9e.ciamlogin.com/b7c0ef89-ea39-404f-ac7c-3737960bcb9e",
+  );
+  assert.equal(hosted.clientId, "5e51d5dc-695d-4ca1-a93a-044daf8a39d9");
+  assert.equal(
+    hosted.scope,
+    "api://56ec374f-1c3c-4e3e-a4c7-e5e7fae75c9d/access_as_user",
+  );
+  assert.equal(hosted.allowLoopbackHttp, false);
+  // Empty values count as unset; a partial override keeps the other defaults.
+  assert.deepEqual(readLoginConfig({ PRJ_SERVER: "" }), hosted);
+  assert.equal(
+    readLoginConfig({ PRJ_SERVER: "https://second.example" }).authority,
+    hosted.authority,
+  );
+  assert.notEqual(credentialScope(hosted), credentialScope(config));
 });
 test("credential directories reject symlinks and lock concurrent operations", async (t) => {
   const home = await mkdtemp(path.join(tmpdir(), "prj-login-"));
@@ -336,10 +363,12 @@ test("credential directories reject symlinks and lock concurrent operations", as
   await assert.rejects(credentialDirectory(config, home), /private|symlink/);
   assert.deepEqual(await readdir(other), []);
 });
-test("unconfigured CLI login fails clearly without echoing arguments", () => {
+test("invalid CLI login settings fail clearly without echoing arguments", () => {
   const clean = { ...process.env };
   for (const name of Object.keys(clean))
     if (name.startsWith("PRJ_")) delete clean[name];
+  // An unsafe override must fail before any browser, network or keychain use.
+  clean.PRJ_SERVER = "http://prjlab.example";
   for (const args of [
     ["login"],
     ["whoami"],

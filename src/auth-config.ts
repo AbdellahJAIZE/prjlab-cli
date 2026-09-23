@@ -9,16 +9,27 @@ export interface LoginConfig {
   allowLoopbackHttp: boolean;
 }
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+// Public identifiers of the hosted PrjLab service; none of them is a secret.
+// Environment variables override them for self-hosted or development servers.
+export const HOSTED_SERVICE = Object.freeze({
+  PRJ_SERVER: "https://prjlab.com",
+  PRJ_AUTHORITY:
+    "https://b7c0ef89-ea39-404f-ac7c-3737960bcb9e.ciamlogin.com/b7c0ef89-ea39-404f-ac7c-3737960bcb9e",
+  PRJ_CLIENT_ID: "5e51d5dc-695d-4ca1-a93a-044daf8a39d9",
+  PRJ_API_SCOPE: "api://56ec374f-1c3c-4e3e-a4c7-e5e7fae75c9d/access_as_user",
+});
 export function readLoginConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): LoginConfig {
   try {
-    const {
-      PRJ_SERVER: server,
-      PRJ_AUTHORITY: authority,
-      PRJ_CLIENT_ID: clientId,
-      PRJ_API_SCOPE: scope,
-    } = env;
+    const setting = (name: keyof typeof HOSTED_SERVICE) =>
+      env[name] === undefined || env[name] === ""
+        ? HOSTED_SERVICE[name]
+        : env[name];
+    const server = setting("PRJ_SERVER"),
+      authority = setting("PRJ_AUTHORITY"),
+      clientId = setting("PRJ_CLIENT_ID"),
+      scope = setting("PRJ_API_SCOPE");
     if (!server || !authority || !clientId || !scope || !uuid.test(clientId))
       throw new Error();
     const origin = new URL(server),
@@ -61,7 +72,7 @@ export function readLoginConfig(
     };
   } catch {
     throw new LoginError(
-      "Configure PRJ_SERVER, PRJ_AUTHORITY, PRJ_CLIENT_ID and PRJ_API_SCOPE with the registered PrjLab applications. No client secret is required.",
+      "Configure PRJ_SERVER, PRJ_AUTHORITY, PRJ_CLIENT_ID and PRJ_API_SCOPE with the registered PrjLab applications, or unset them to use https://prjlab.com. No client secret is required.",
     );
   }
 }
