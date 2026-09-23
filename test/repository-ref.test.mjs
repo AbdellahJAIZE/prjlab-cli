@@ -16,6 +16,8 @@ const listing = (items, status = 200) => ({
   calls: [],
   async request(method, route, options) {
     this.calls.push([method, route, options?.signal instanceof AbortSignal]);
+    if (route.startsWith("/api/v1/repositories/lookup?"))
+      return { status: 404, data: {} };
     return { status, data: items };
   },
 });
@@ -60,7 +62,46 @@ test("handle/name resolves against the caller's repository list", async () => {
   assert.equal(api.calls.length, 1, "IDs never hit the network");
   await assert.rejects(
     resolveRepository({ kind: "name", handle: "alice", slug: "other" }, api),
-    /alice\/other was not found in your repositories/,
+    /alice\/other was not found in your repositories and is not public/,
+  );
+  assert.deepEqual(api.calls.at(-1), [
+    "GET",
+    "/api/v1/repositories/lookup?handle=alice&slug=other",
+    false,
+  ]);
+  // A public repository that is not in the caller's list resolves via lookup.
+  const publicId = id.replace(/1/g, "3");
+  const withLookup = {
+    calls: [],
+    request: async (method, route, options) => {
+      withLookup.calls.push([method, route]);
+      if (route === "/api/v1/repositories") return { status: 200, data: [] };
+      if (route.startsWith("/api/v1/repositories/lookup?"))
+        return {
+          status: 200,
+          data: { id: publicId, handle: "carol", slug: "open", role: "reader" },
+        };
+      return { status: 404, data: {} };
+    },
+  };
+  assert.equal(
+    await resolveRepository(
+      { kind: "name", handle: "carol", slug: "open" },
+      withLookup,
+    ),
+    publicId,
+  );
+  await assert.rejects(
+    resolveRepository(
+      { kind: "name", handle: "carol", slug: "open" },
+      {
+        request: async (method, route) =>
+          route === "/api/v1/repositories"
+            ? { status: 200, data: [] }
+            : { status: 200, data: { id: "bad" } },
+      },
+    ),
+    TransportError,
   );
   await assert.rejects(
     resolveRepository(
@@ -71,6 +112,8 @@ test("handle/name resolves against the caller's repository list", async () => {
     ),
     TransportError,
   );
+  // A malformed list entry is never trusted; the lookup fallback then sees the
+  // same malformed stub and refuses it as an invalid response.
   await assert.rejects(
     resolveRepository(
       { kind: "name", handle: "alice", slug: "notes" },
@@ -81,7 +124,7 @@ test("handle/name resolves against the caller's repository list", async () => {
         }),
       },
     ),
-    ProjectError,
+    TransportError,
   );
 });
 test("clone directory defaults to the repository name", () => {

@@ -51,8 +51,26 @@ export async function resolveRepository(
     )
       return v.id.toLowerCase();
   }
+  // Not one of yours: it may still be a public repository (contract 0.7).
+  const found = await api.request(
+    "GET",
+    `/api/v1/repositories/lookup?handle=${encodeURIComponent(ref.handle)}&slug=${encodeURIComponent(ref.slug)}`,
+    { signal },
+  );
+  if (found.status === 200) {
+    const v = found.data as { id?: unknown };
+    if (
+      v &&
+      typeof v === "object" &&
+      typeof v.id === "string" &&
+      UUID.test(v.id)
+    )
+      return v.id.toLowerCase();
+    throw new TransportError("response");
+  }
+  if (found.status !== 404) throw new TransportError("response");
   throw new ProjectError(
-    `Repository ${ref.handle}/${ref.slug} was not found in your repositories. Check the name or ask the owner for access.`,
+    `Repository ${ref.handle}/${ref.slug} was not found in your repositories and is not public. Check the name or ask the owner for access.`,
   );
 }
 export function defaultCloneDirectory(ref: RepositoryRef): string {
