@@ -16,7 +16,7 @@ const listing = (items, status = 200) => ({
   calls: [],
   async request(method, route, options) {
     this.calls.push([method, route, options?.signal instanceof AbortSignal]);
-    if (route.startsWith("/api/v1/repositories/lookup?"))
+    if (route.startsWith("/api/v1/repositories/lookup/"))
       return { status: 404, data: {} };
     return { status, data: items };
   },
@@ -66,7 +66,7 @@ test("handle/name resolves against the caller's repository list", async () => {
   );
   assert.deepEqual(api.calls.at(-1), [
     "GET",
-    "/api/v1/repositories/lookup?handle=alice&slug=other",
+    "/api/v1/repositories/lookup/alice/other",
     false,
   ]);
   // A public repository that is not in the caller's list resolves via lookup.
@@ -76,7 +76,7 @@ test("handle/name resolves against the caller's repository list", async () => {
     request: async (method, route, options) => {
       withLookup.calls.push([method, route]);
       if (route === "/api/v1/repositories") return { status: 200, data: [] };
-      if (route.startsWith("/api/v1/repositories/lookup?"))
+      if (route.startsWith("/api/v1/repositories/lookup/"))
         return {
           status: 200,
           data: { id: publicId, handle: "carol", slug: "open", role: "reader" },
