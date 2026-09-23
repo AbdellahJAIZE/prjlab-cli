@@ -8,6 +8,14 @@ import { LoginSession } from "./login-session.js";
 import { ProjectError } from "./snapshot.js";
 import { TransportError } from "./http.js";
 import { push, pull, clone } from "./sync.js";
+import {
+  parseRepositoryRef,
+  resolveRepository,
+  defaultCloneDirectory,
+  linkedRepository,
+} from "./repository-ref.js";
+const USAGE =
+  "Usage: prj push [<handle>/<name>] | pull [<handle>/<name>] | clone <handle>/<name> [<new-directory>]. A repository ID works in place of <handle>/<name>.";
 export async function syncCommands(args: readonly string[]) {
   const command = args[0];
   if (!["push", "pull", "clone"].includes(command ?? "")) return undefined;
@@ -17,21 +25,27 @@ export async function syncCommands(args: readonly string[]) {
   process.once("SIGINT", cancel);
   process.once("SIGTERM", cancel);
   try {
+    const rest = args.slice(1);
     if (
-      args.length !== (command === "clone" ? 3 : 2) ||
-      !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(args[1] ?? "")
+      (command === "clone" && (rest.length < 1 || rest.length > 2)) ||
+      (command !== "clone" && rest.length > 1) ||
+      rest.some((a) => a.startsWith("-"))
     )
-      throw new ProjectError(
-        "Usage: prj push <repository-id> | pull <repository-id> | clone <repository-id> <new-directory>.",
-      );
-    const repository = args[1]!.toLowerCase(),
-      config = readLoginConfig(),
-      directory = await credentialDirectory(config);
+      throw new ProjectError(USAGE);
+    const config = readLoginConfig(),
+      ref = rest[0] === undefined ? undefined : parseRepositoryRef(rest[0]);
+    const linked =
+      ref === undefined
+        ? await linkedRepository(process.cwd(), config.origin)
+        : undefined;
+    const directory = await credentialDirectory(config);
     const api = await withCredentialLock(directory, async () =>
       new LoginSession(config, await secureStore(config, directory)).transport(
         controller.signal,
       ),
     );
+    const repository =
+      linked ?? (await resolveRepository(ref!, api, controller.signal));
     const result =
       command === "push"
         ? await push(
@@ -50,7 +64,7 @@ export async function syncCommands(args: readonly string[]) {
               controller.signal,
             )
           : await clone(
-              args[2]!,
+              rest[1] ?? defaultCloneDirectory(ref!),
               config.origin,
               repository,
               api,
