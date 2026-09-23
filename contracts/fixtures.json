@@ -18,7 +18,19 @@
     "description": "Example repository",
     "created_at": "2026-01-01T00:00:00.000Z",
     "handle": "alice",
-    "role": "owner"
+    "role": "owner",
+    "updated_at": "2026-09-20T00:00:00.000Z",
+    "versions": 12,
+    "latest": {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "createdAt": "2026-09-20T00:00:00.000Z",
+      "message": "Add design principles to memory",
+      "files": 24,
+      "instructions": 1,
+      "memories": 8,
+      "sessions": 3,
+      "bytes": 186000
+    }
   },
   "RepositoryDetail": {
     "id": "11111111-1111-4111-8111-111111111111",
@@ -27,7 +39,19 @@
     "created_at": "2026-01-01T00:00:00.000Z",
     "handle": "alice",
     "role": "owner",
-    "owner_id": "22222222-2222-4222-8222-222222222222"
+    "owner_id": "22222222-2222-4222-8222-222222222222",
+    "updated_at": "2026-09-20T00:00:00.000Z",
+    "versions": 12,
+    "latest": {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "createdAt": "2026-09-20T00:00:00.000Z",
+      "message": "Add design principles to memory",
+      "files": 24,
+      "instructions": 1,
+      "memories": 8,
+      "sessions": 3,
+      "bytes": 186000
+    }
   },
   "Repositories": [
     {
@@ -36,7 +60,19 @@
       "description": "Example repository",
       "created_at": "2026-01-01T00:00:00.000Z",
       "handle": "alice",
-      "role": "owner"
+      "role": "owner",
+      "updated_at": "2026-09-20T00:00:00.000Z",
+      "versions": 12,
+      "latest": {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "createdAt": "2026-09-20T00:00:00.000Z",
+        "message": "Add design principles to memory",
+        "files": 24,
+        "instructions": 1,
+        "memories": 8,
+        "sessions": 3,
+        "bytes": 186000
+      }
     }
   ],
   "Invite": {
@@ -124,7 +160,9 @@
     "manifest": {
       "version": 1,
       "entries": []
-    }
+    },
+    "message": "Add design principles to memory",
+    "createdAt": "2026-09-20T00:00:00.000Z"
   },
   "VersionCommit": {
     "expectedParent": null,
@@ -132,7 +170,8 @@
     "manifest": {
       "version": 1,
       "entries": []
-    }
+    },
+    "message": "Add design principles to memory"
   },
   "VersionError": {
     "code": "tip_conflict",
@@ -142,14 +181,16 @@
   "VersionSummary": {
     "id": "00000000-0000-4000-8000-000000000001",
     "parent": null,
-    "createdAt": "2026-09-20T00:00:00.000Z"
+    "createdAt": "2026-09-20T00:00:00.000Z",
+    "message": "Add design principles to memory"
   },
   "VersionPage": {
     "items": [
       {
         "id": "00000000-0000-4000-8000-000000000001",
         "parent": null,
-        "createdAt": "2026-09-20T00:00:00.000Z"
+        "createdAt": "2026-09-20T00:00:00.000Z",
+        "message": "Add design principles to memory"
       }
     ],
     "nextCursor": null
