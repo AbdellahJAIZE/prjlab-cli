@@ -53,17 +53,18 @@ try {
     { encoding: "utf8" },
   ).trim();
   assert.equal(version, manifest.version);
-  // A packed CLI must explain missing auth configuration without native keychain loading.
+  // A packed CLI must reject an unsafe server override without native keychain loading.
   const authEnv = { ...process.env };
   for (const name of Object.keys(authEnv))
     if (name.startsWith("PRJ_")) delete authEnv[name];
+  authEnv.PRJ_SERVER = "http://prjlab.example";
   try {
     execFileSync(
       process.execPath,
       [path.join(installed, "dist/bin.js"), "login"],
       { encoding: "utf8", env: authEnv, stdio: "pipe" },
     );
-    assert.fail("Unconfigured login unexpectedly succeeded");
+    assert.fail("Login with an unsafe server override unexpectedly succeeded");
   } catch (error) {
     assert.equal(error.status, 1);
     assert.match(String(error.stderr), /Configure PRJ_SERVER/);

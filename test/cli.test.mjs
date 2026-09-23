@@ -6,8 +6,23 @@ import { readFileSync } from "node:fs";
 test("help describes actual capabilities", () => {
   const r = run([]);
   assert.equal(r.code, 0);
-  assert.match(r.stdout, /push <repository-id>/);
-  assert.match(r.stdout, /Remote sync requires login/);
+  for (const command of [
+    "login",
+    "whoami",
+    "logout",
+    "init",
+    "status",
+    "snapshot",
+    "export <snapshot-id> <new-dir>",
+    "restore <snapshot-id>",
+    "recover",
+    "push [<handle>/<name>]",
+    "pull [<handle>/<name>]",
+    "clone <handle>/<name> [<dir>]",
+  ])
+    assert.ok(r.stdout.includes(command), command);
+  assert.match(r.stdout, /https:\/\/prjlab\.com\/docs/);
+  assert.doesNotMatch(r.stdout, /development/i);
 });
 test("version matches package metadata", () => {
   assert.equal(
@@ -17,8 +32,10 @@ test("version matches package metadata", () => {
   );
 });
 test("unimplemented commands fail rather than pretending to succeed", () => {
-  for (const c of ["login", "logout", "push", "pull", "clone", "search"])
-    assert.equal(run([c]).code, 1);
+  assert.equal(run(["search"]).code, 1);
+  // Account and sync commands are dispatched before this fallback; here they are unknown.
+  for (const c of ["login", "logout", "push", "pull", "clone"])
+    assert.equal(run([c]).code, 2);
 });
 test("unknown arguments do not leak user input", () => {
   const r = run(["private-secret-value"]);
