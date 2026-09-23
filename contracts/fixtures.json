@@ -1,10 +1,7 @@
 {
   "Account": {
     "id": "22222222-2222-4222-8222-222222222222",
-    "handle": "alice",
-    "display_name": "Alice Example",
-    "bio": "Builds small tools.",
-    "created_at": "2026-01-01T00:00:00.000Z"
+    "handle": "alice"
   },
   "RegisterAccount": {
     "handle": "alice"
@@ -328,5 +325,12 @@
         "visibility": "private"
       }
     ]
+  },
+  "AccountProfile": {
+    "id": "22222222-2222-4222-8222-222222222222",
+    "handle": "alice",
+    "display_name": "Alice Example",
+    "bio": "Builds small tools.",
+    "created_at": "2026-01-01T00:00:00.000Z"
   }
 }

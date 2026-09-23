@@ -98,8 +98,8 @@ export const loginDependencies: LoginDependencies = {
       if (!data || typeof data !== "object" || Array.isArray(data))
         throw new Error();
       const account = data as Record<string, unknown>;
+      // Additive keys are allowed: the contract may grow without breaking sign-in.
       if (
-        Object.keys(account).sort().join(",") !== "handle,id" ||
         typeof account.id !== "string" ||
         !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(account.id) ||
         typeof account.handle !== "string" ||
