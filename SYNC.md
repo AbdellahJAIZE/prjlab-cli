@@ -1,60 +1,66 @@
-# Private sync — development CLI
+# Sync: push, pull and clone
 
-Configure login as described in LOGIN.md, sign in, and create a private repository
-in the web app. Use its repository UUID (not its slug) with these commands:
+Sign in with `prj login` and create a repository at https://prjlab.com/new. Name it
+as `<handle>/<name>` (the owner's handle and the repository name); a repository ID
+from the web app works too.
 
 ```
 prj init
-prj push <repository-id>
-prj clone <repository-id> <new-directory>
-prj pull <repository-id>
+prj push <handle>/<name>              # first push links this directory
+prj push                              # later pushes remember the repository
+prj clone <handle>/<name> [<dir>]     # new directory, defaults to <name>
+prj pull                              # bring the directory up to the newest version
 ```
 
-Push and pull act on the current initialized directory. Clone requires a new
-path with existing safe parent directories. It never replaces an existing folder.
-Clone failure may leave an initialized directory; enter it and retry pull using
-the same repository ID. No downloaded code or instructions execute automatically.
+Push and pull act on the current initialized directory. `<handle>/<name>` is looked
+up in your own and shared repositories, so a repository you were not invited to is
+reported as not found. Clone requires a new path with existing safe parent
+directories; it never replaces an existing folder. If a clone fails part-way, enter
+the directory and run `prj pull`. No downloaded code or instructions execute
+automatically.
 
-Push uploads files selected by the existing snapshot scanner/ignore rules.
-Review exclusions and project content before running it. Local snapshot/status/
-export/restore commands remain offline. Status describes the local snapshot HEAD,
-not the remote server tip. Remote origin, repository ID and adopted base live in
-.prj/remote.json; they cannot silently switch when environment settings change.
+Push uploads files selected by the snapshot scanner and ignore rules (see README).
+Review exclusions and project content before running it. Local snapshot, status,
+export and restore commands remain offline. `status` describes the local snapshot,
+not the remote tip. Remote origin, repository ID and adopted base live in
+`.prj/remote.json`; they cannot silently switch when environment settings change,
+and push/pull refuse a directory linked to a different server.
+
+## Conflicts and recovery
 
 One project lock covers staging and adoption. Pull validates every path, digest
 and length before changing workspace files. It uses the adopted remote snapshot
 as the three-way baseline, independently of later local captures. Unrelated local
 changes survive; conflicting edits cause failure with no planned changes applied.
-Resolve conflicts locally, then retry pull. No force overwrite option is provided.
+Resolve conflicts locally, then retry pull. There is no force overwrite option.
 
-Pending push records retain a retry key and exact captured snapshot. If a commit
+Pending push records retain a retry key and the exact captured snapshot. If a commit
 reply is lost, retry the same push: it completes the original snapshot without a
 second server version. Later local edits remain untouched; push again to upload
 them. An unknown push outcome blocks pull until the push is resolved. A definitive
-begin/commit conflict clears the pending push and preserves the old base so pull can run.
-An object-transfer conflict retains pending state until session status resolves it.
+begin/commit conflict clears the pending push and preserves the old base so pull can
+run. An object-transfer conflict retains pending state until session status resolves it.
 
 Pending pull records permit adoption to resume after a local metadata write
 failure. Current remote access is checked before resuming. Interrupted filesystem
-restores may require `prj recover` before retrying. Keep .prj intact; deleting retry
-metadata can destroy the information needed to reconcile a network failure.
-
-Transfers use configured-origin bearer credentials, reject redirects, validate
-SHA-256 and limit each request to10 seconds. A sync command has a5-minute deadline.
-Token refresh happens before the command; an expired token during transfer fails
-with saved retry state. No automatic background sync, retries or credential logging.
-
-Development limits:5MiB/file,100MiB aggregate snapshot,1000 entries; normalized
-remote manifest60KiB within64KiB request; repository object/version quotas also
-apply. Repositories can fill with historical or uncommitted objects. Upload
-sessions now reserve space before transfer. Quota reclamation and cloud storage
-remain pending.
-Do not call this production-ready. Live External ID issuance still needs a real
-tenant verification; automated sync tests use isolated synthetic identities.
+restores may require `prj recover` before retrying. Keep `.prj` intact; deleting
+retry metadata can destroy the information needed to reconcile a network failure.
 
 New pushes persist an upload-session retry key before networking, then persist the
 returned session ID before transferring bytes. A lost begin reply reuses the same
 key. A lost commit reply reads session status and adopts its original version.
 Only a confirmed expired/aborted session permits a fresh retry key; retry push to
-resume the same saved snapshot. No automatic renewal or abort command is included.
-Old pending pushes keep their legacy publication retry key until resolved.
+resume the same saved snapshot. Sessions expire after 24 hours without renewal.
+
+## Transport and limits
+
+Transfers use bearer credentials for the configured origin, reject redirects,
+validate SHA-256 and limit each request to 10 seconds. A sync command has a
+5-minute deadline. Token refresh happens before the command; an expired token
+during transfer fails with saved retry state. There is no background sync,
+automatic retry or credential logging.
+
+Limits: 5 MiB per file, 100 MiB per snapshot, 1,000 entries; the normalized
+remote manifest must fit in 60 KiB within a 64 KiB request. Repository object and
+version quotas also apply, and history keeps every pushed object, so a repository
+can fill with historical content.
