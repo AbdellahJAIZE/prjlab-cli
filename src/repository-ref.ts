@@ -54,7 +54,7 @@ export async function resolveRepository(
   // Not one of yours: it may still be a public repository (contract 0.7).
   const found = await api.request(
     "GET",
-    `/api/v1/repositories/lookup?handle=${encodeURIComponent(ref.handle)}&slug=${encodeURIComponent(ref.slug)}`,
+    `/api/v1/repositories/lookup/${ref.handle}/${ref.slug}`,
     { signal },
   );
   if (found.status === 200) {
