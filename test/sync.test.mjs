@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { initialize, capture } from "../dist/snapshot.js";
-import { push, pull } from "../dist/sync.js";
+import { push, pull, parsePushArguments } from "../dist/sync.js";
 import { TransportError } from "../dist/http.js";
 const origin = "https://prj.example",
   repo = randomUUID(),
@@ -366,4 +366,64 @@ test("pre-session pending pushes retain their original legacy retry key", async 
   await push(root, origin, repo, api, signal);
   assert.equal(api.uploads.size, 0);
   assert.equal(api.versions.size, 1);
+});
+test("push sends its message in the reservation and omits the field without one", async (t) => {
+  const root = await workspace(t),
+    api = server();
+  await writeFile(path.join(root, "note"), "first");
+  await push(root, origin, repo, api, signal, {
+    message: "Add the first note\n",
+  });
+  const [first] = [...api.uploads.values()];
+  assert.equal(first.body.message, "Add the first note");
+  assert.equal(api.versions.size, 1);
+  await writeFile(path.join(root, "note"), "second");
+  await push(root, origin, repo, api, signal);
+  const [, second] = [...api.uploads.values()];
+  assert.ok(!Object.hasOwn(second.body, "message"));
+  assert.equal(api.versions.size, 2);
+});
+test("a retried push resends the reserved message even when the retry gives another", async (t) => {
+  const root = await workspace(t),
+    api = server();
+  await writeFile(path.join(root, "note"), "kept");
+  api.loseBeginReply = true;
+  await assert.rejects(
+    push(root, origin, repo, api, signal, { message: "Reserved wording" }),
+  );
+  assert.equal((await state(root)).pendingPush.message, "Reserved wording");
+  await push(root, origin, repo, api, signal, { message: "Later wording" });
+  assert.equal(api.uploads.size, 1);
+  for (const upload of api.uploads.values())
+    assert.equal(upload.body.message, "Reserved wording");
+  assert.equal(api.versions.size, 1);
+  assert.equal((await state(root)).pendingPush, undefined);
+});
+test("invalid push messages are rejected before any network call or reservation", async (t) => {
+  const root = await workspace(t),
+    api = server();
+  let calls = 0;
+  api.request = async () => {
+    calls++;
+    throw new Error("network must not be used");
+  };
+  await writeFile(path.join(root, "note"), "unchanged");
+  for (const message of ["x".repeat(201), "tab\tok\u0007bell", "\n", ""])
+    await assert.rejects(
+      push(root, origin, repo, api, signal, { message }),
+      /push message/,
+    );
+  assert.equal(calls, 0);
+  await assert.rejects(state(root));
+  assert.deepEqual(parsePushArguments(["alice/notes", "-m", "Done"]), {
+    rest: ["alice/notes"],
+    options: { message: "Done" },
+  });
+  assert.deepEqual(parsePushArguments(["--message=Done", "alice/notes"]), {
+    rest: ["alice/notes"],
+    options: { message: "Done" },
+  });
+  assert.deepEqual(parsePushArguments([]), { rest: [], options: {} });
+  assert.throws(() => parsePushArguments(["-m"]), /after -m/);
+  assert.throws(() => parsePushArguments(["-m", "a", "-m", "b"]), /only once/);
 });

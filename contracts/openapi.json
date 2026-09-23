@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "PrjLab account and private repository API",
-    "version": "0.5.0-development",
+    "version": "0.6.0-development",
     "description": "Private repositories, bounded encrypted objects, immutable versions and resumable upload sessions.",
     "license": {
       "name": "MIT",
@@ -1423,6 +1423,16 @@
         ],
         "x-required-access": "owner or writer",
         "responses": {
+          "200": {
+            "description": "Object stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ObjectReceipt"
+                }
+              }
+            }
+          },
           "400": {
             "description": "Invalid input",
             "content": {
@@ -1463,6 +1473,16 @@
               }
             }
           },
+          "409": {
+            "description": "Invalid input",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "413": {
             "description": "Development size or quota limit",
             "content": {
@@ -1485,26 +1505,6 @@
           },
           "503": {
             "description": "Storage unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "200": {
-            "description": "Object stored",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ObjectReceipt"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Invalid input",
             "content": {
               "application/json": {
                 "schema": {
@@ -1549,6 +1549,15 @@
         ],
         "x-required-access": "owner, writer or reader",
         "responses": {
+          "200": {
+            "description": "Private object bytes",
+            "content": {
+              "application/octet-stream": {
+                "schema": {},
+                "x-max-bytes": 5242880
+              }
+            }
+          },
           "400": {
             "description": "Invalid input",
             "content": {
@@ -1616,15 +1625,6 @@
                 "schema": {
                   "$ref": "#/components/schemas/Error"
                 }
-              }
-            }
-          },
-          "200": {
-            "description": "Private object bytes",
-            "content": {
-              "application/octet-stream": {
-                "schema": {},
-                "x-max-bytes": 5242880
               }
             }
           }
@@ -2126,6 +2126,16 @@
               }
             }
           },
+          "410": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
           "413": {
             "description": "Development version response",
             "content": {
@@ -2137,16 +2147,6 @@
             }
           },
           "503": {
-            "description": "Development version response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VersionError"
-                }
-              }
-            }
-          },
-          "410": {
             "description": "Development version response",
             "content": {
               "application/json": {
@@ -2255,6 +2255,16 @@
               }
             }
           },
+          "410": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
           "413": {
             "description": "Development version response",
             "content": {
@@ -2266,16 +2276,6 @@
             }
           },
           "503": {
-            "description": "Development version response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VersionError"
-                }
-              }
-            }
-          },
-          "410": {
             "description": "Development version response",
             "content": {
               "application/json": {
@@ -2371,6 +2371,16 @@
               }
             }
           },
+          "410": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
           "413": {
             "description": "Development version response",
             "content": {
@@ -2382,16 +2392,6 @@
             }
           },
           "503": {
-            "description": "Development version response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VersionError"
-                }
-              }
-            }
-          },
-          "410": {
             "description": "Development version response",
             "content": {
               "application/json": {
@@ -2489,6 +2489,16 @@
               }
             }
           },
+          "410": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
           "413": {
             "description": "Development version response",
             "content": {
@@ -2500,16 +2510,6 @@
             }
           },
           "503": {
-            "description": "Development version response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VersionError"
-                }
-              }
-            }
-          },
-          "410": {
             "description": "Development version response",
             "content": {
               "application/json": {
@@ -2616,26 +2616,6 @@
               }
             }
           },
-          "413": {
-            "description": "Development version response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VersionError"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Development version response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VersionError"
-                }
-              }
-            }
-          },
           "410": {
             "description": "Development version response",
             "content": {
@@ -2646,7 +2626,27 @@
               }
             }
           },
+          "413": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
           "415": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "503": {
             "description": "Development version response",
             "content": {
               "application/json": {
@@ -2882,6 +2882,24 @@
           "role": {
             "type": "string",
             "enum": ["owner", "reader", "writer"]
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "versions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "latest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatestVersion"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -2890,7 +2908,10 @@
           "description",
           "created_at",
           "handle",
-          "role"
+          "role",
+          "updated_at",
+          "versions",
+          "latest"
         ],
         "additionalProperties": false
       },
@@ -2969,6 +2990,24 @@
           "owner_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "versions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "latest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LatestVersion"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -2978,7 +3017,10 @@
           "created_at",
           "handle",
           "role",
-          "owner_id"
+          "owner_id",
+          "updated_at",
+          "versions",
+          "latest"
         ],
         "additionalProperties": false
       },
@@ -3450,6 +3492,11 @@
           },
           "manifest": {
             "$ref": "#/components/schemas/Manifest"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 200,
+            "pattern": "^[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]*$"
           }
         }
       },
@@ -3493,7 +3540,7 @@
       "VersionSummary": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "parent", "createdAt"],
+        "required": ["id", "parent", "createdAt", "message"],
         "properties": {
           "id": {
             "type": "string",
@@ -3513,6 +3560,11 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 200,
+            "pattern": "^[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]*$"
           }
         }
       },
@@ -3568,6 +3620,55 @@
                 "type": "null"
               }
             ]
+          }
+        }
+      },
+      "LatestVersion": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "createdAt",
+          "message",
+          "files",
+          "instructions",
+          "memories",
+          "sessions",
+          "bytes"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 200,
+            "pattern": "^[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]*$"
+          },
+          "files": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "instructions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "memories": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sessions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       }

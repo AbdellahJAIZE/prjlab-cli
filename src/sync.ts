@@ -32,6 +32,7 @@ interface Link {
     parent: string | null;
     protocol?: "sessions";
     session?: string;
+    message?: string;
   };
   pendingPull?: { snapshot: string; version: string };
 }
@@ -40,6 +41,52 @@ const uuid = (v: unknown): v is string =>
   /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(v);
 const hash = (v: unknown): v is string =>
   typeof v === "string" && /^[a-f0-9]{64}$/.test(v);
+const MESSAGE_LIMIT = 200;
+const validMessage = (v: unknown): v is string =>
+  typeof v === "string" &&
+  v.length > 0 &&
+  v.length <= MESSAGE_LIMIT &&
+  !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(v);
+// A push message: trailing line breaks are dropped; the server stores at most 200
+// characters and rejects control characters other than tab and line breaks.
+export function pushMessage(input: string): string {
+  const message = input.replace(/[\r\n]+$/, "");
+  if (message.length === 0)
+    throw new ProjectError("The push message is empty.");
+  if (!validMessage(message))
+    throw new ProjectError(
+      `The push message must be at most ${MESSAGE_LIMIT} characters and contain no control characters.`,
+    );
+  return message;
+}
+export interface PushOptions {
+  message?: string;
+}
+// Splits `-m <text>` / `--message <text>` / `--message=<text>` out of push arguments.
+export function parsePushArguments(args: readonly string[]): {
+  rest: string[];
+  options: PushOptions;
+} {
+  const rest: string[] = [],
+    options: PushOptions = {};
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!;
+    let value: string | undefined;
+    if (arg === "-m" || arg === "--message") {
+      if (i + 1 >= args.length)
+        throw new ProjectError("Give the push message after -m.");
+      value = args[++i]!;
+    } else if (arg.startsWith("--message=")) value = arg.slice(10);
+    else {
+      rest.push(arg);
+      continue;
+    }
+    if (options.message !== undefined)
+      throw new ProjectError("Give the push message only once.");
+    options.message = pushMessage(value);
+  }
+  return { rest, options };
+}
 function link(input: unknown, origin: string, repository: string): Link {
   if (!uuid(repository)) throw new ProjectError("Invalid repository ID.");
   if (input === null)
@@ -86,7 +133,9 @@ function link(input: unknown, origin: string, repository: string): Link {
         v.pendingPush.protocol !== "sessions") ||
       (v.pendingPush.session !== undefined &&
         (!uuid(v.pendingPush.session) ||
-          v.pendingPush.protocol !== "sessions")))
+          v.pendingPush.protocol !== "sessions")) ||
+      (v.pendingPush.message !== undefined &&
+        !validMessage(v.pendingPush.message)))
   )
     throw new ProjectError("Invalid pending push.");
   if (
@@ -143,7 +192,10 @@ export async function push(
   repository: string,
   api: SyncApi,
   signal: AbortSignal,
+  options: PushOptions = {},
 ) {
+  const message =
+    options.message === undefined ? undefined : pushMessage(options.message);
   return withSync(root, async (project) => {
     const state = link(await project.readLink(), origin, repository);
     if (state.pendingPull)
@@ -159,11 +211,15 @@ export async function push(
         retryKey: randomUUID(),
         parent: state.baseVersion,
         protocol: "sessions",
+        ...(message === undefined ? {} : { message }),
       };
       await project.writeLink(state);
     }
+    // A retried push resends exactly what was reserved; a new message waits for the next push.
     const pending = state.pendingPush,
-      manifest = await project.manifest(pending.snapshot);
+      manifest = await project.manifest(pending.snapshot),
+      described =
+        pending.message === undefined ? {} : { message: pending.message };
     let response;
     let canClearConflict = false;
     try {
@@ -177,6 +233,7 @@ export async function push(
                 expectedParent: pending.parent,
                 retryKey: pending.retryKey,
                 manifest,
+                ...described,
               },
               signal,
             });
@@ -245,6 +302,7 @@ export async function push(
               expectedParent: pending.parent,
               retryKey: pending.retryKey,
               manifest,
+              ...described,
             },
             signal,
           },

@@ -7,7 +7,7 @@ import {
 import { LoginSession } from "./login-session.js";
 import { ProjectError } from "./snapshot.js";
 import { TransportError } from "./http.js";
-import { push, pull, clone } from "./sync.js";
+import { push, pull, clone, parsePushArguments } from "./sync.js";
 import {
   parseRepositoryRef,
   resolveRepository,
@@ -15,7 +15,7 @@ import {
   linkedRepository,
 } from "./repository-ref.js";
 const USAGE =
-  "Usage: prj push [<handle>/<name>] | pull [<handle>/<name>] | clone <handle>/<name> [<new-directory>]. A repository ID works in place of <handle>/<name>.";
+  'Usage: prj push [<handle>/<name>] [-m "what changed"] | pull [<handle>/<name>] | clone <handle>/<name> [<new-directory>]. A repository ID works in place of <handle>/<name>.';
 export async function syncCommands(args: readonly string[]) {
   const command = args[0];
   if (!["push", "pull", "clone"].includes(command ?? "")) return undefined;
@@ -25,7 +25,11 @@ export async function syncCommands(args: readonly string[]) {
   process.once("SIGINT", cancel);
   process.once("SIGTERM", cancel);
   try {
-    const rest = args.slice(1);
+    const parsed =
+      command === "push"
+        ? parsePushArguments(args.slice(1))
+        : { rest: args.slice(1), options: {} };
+    const { rest, options } = parsed;
     if (
       (command === "clone" && (rest.length < 1 || rest.length > 2)) ||
       (command !== "clone" && rest.length > 1) ||
@@ -54,6 +58,7 @@ export async function syncCommands(args: readonly string[]) {
             repository,
             api,
             controller.signal,
+            options,
           )
         : command === "pull"
           ? await pull(

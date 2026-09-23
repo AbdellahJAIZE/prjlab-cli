@@ -37,6 +37,7 @@ is no plaintext fallback. If you installed with `--ignore-scripts`, run
 prj login                       # opens your browser once
 prj init                        # creates .prj/ (add it to .gitignore)
 prj push you/your-repo          # upload this directory as version 1
+prj push -m "what changed"      # later: describe the version (up to 200 characters)
 ```
 
 4. On another machine, or for a friend you invited:
