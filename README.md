@@ -12,14 +12,16 @@ MIT licensed and does not contain the platform or any credentials.
 
 ## Install
 
-Requires Node 22. Until the npm package is published, install the release tarball:
+Requires Node 22. The package is published on npm as
+[`prjlab-cli`](https://www.npmjs.com/package/prjlab-cli):
 
 ```sh
-npm install -g https://github.com/AbdellahJAIZE/prjlab-cli/releases/download/v0.1.0/prjlab-cli-0.1.0.tgz
+npm install -g prjlab-cli
 prj --version
 ```
 
-Once published, `npm install -g prjlab-cli` will do the same.
+Every GitHub release also carries the identical tarball
+(`npm install -g https://github.com/AbdellahJAIZE/prjlab-cli/releases/download/vX.Y.Z/prjlab-cli-X.Y.Z.tgz`).
 
 Sign-in stores an encrypted credential in your operating system's keychain
 (Windows Credential Manager, macOS Keychain, or Linux Secret Service). On Linux
