@@ -1,6 +1,6 @@
 # PrjLab development API contract
 
-Version: 0.4.0-development. Canonical source: this public CLI repository's
+Version: 0.6.0-development. Canonical source: this public CLI repository's
 `contracts/` directory. MIT licensed. No private implementation is needed to
 consume it; the platform vendors the same files for integration testing.
 
@@ -52,6 +52,13 @@ outside this CLI-facing contract. Version commit, tip and immutable manifest rea
   limit, not a published beta quota or pricing promise.
 - Repository details include owner_id; summaries do not. Schemas reject extra
   response fields so newly added database columns cannot silently become a public API.
+- Version messages (0.6): `VersionCommit` (legacy commit and upload begin) accepts an
+  optional `message` of at most 200 characters without control characters other than
+  tab and line breaks; omit the field rather than sending an empty string. Version
+  summaries and details return `message` (empty when none was given; details also
+  `createdAt`). Repository summaries and details return `updated_at`, `versions` and
+  `latest` (the newest version's id, time, message and entry counts by kind, or null),
+  so clients can show recent activity without reading encrypted manifests.
 - HTTP 400/401/403/404/409/413/500/503 are documented. Error messages are for people,
   not stable machine codes. A client must not distinguish handle conflicts, quota
   conflicts or missing accounts by matching English text. Future sync needs codes.

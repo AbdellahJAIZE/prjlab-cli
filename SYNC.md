@@ -8,6 +8,7 @@ from the web app works too.
 prj init
 prj push <handle>/<name>              # first push links this directory
 prj push                              # later pushes remember the repository
+prj push -m "what changed"            # describe the version; shown in the web app
 prj clone <handle>/<name> [<dir>]     # new directory, defaults to <name>
 prj pull                              # bring the directory up to the newest version
 ```

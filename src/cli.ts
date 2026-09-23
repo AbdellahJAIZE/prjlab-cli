@@ -1,4 +1,4 @@
-export const VERSION = "0.1.0";
+export const VERSION = "0.2.0";
 const HELP = `prj ${VERSION} — push, pull and clone your projects with their context.
 
 Usage: prj <command> [arguments]
@@ -9,11 +9,12 @@ Account
   logout                             Remove the saved credentials on this machine
 
 Sync (needs login; create repositories at https://prjlab.com/new)
-  push [<handle>/<name>]             Upload this directory as a new version
+  push [<handle>/<name>] [-m "…"]    Upload this directory as a new version
   pull [<handle>/<name>]             Bring this directory up to the latest version
   clone <handle>/<name> [<dir>]      Copy a repository into a new directory
   A repository ID works in place of <handle>/<name>. After the first push or
-  clone, push and pull remember the repository.
+  clone, push and pull remember the repository. -m / --message describes
+  the version (up to 200 characters).
 
 Local (offline)
   init                               Prepare this directory (creates .prj/)
