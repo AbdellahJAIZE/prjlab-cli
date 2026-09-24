@@ -202,7 +202,9 @@ export async function push(
       throw new ProjectError("Finish the pending pull before pushing.");
     if (!state.pendingPush) {
       const captured = await project.capture();
-      if (Buffer.byteLength(JSON.stringify(captured.manifest)) > 60 * 1024)
+      // Mirrors the server's MANIFEST_BYTE_LIMIT (512 KiB): 1,000 entries
+      // with 240-character paths fit; anything larger is refused up front.
+      if (Buffer.byteLength(JSON.stringify(captured.manifest)) > 512 * 1024)
         throw new ProjectError(
           "Manifest exceeds the server development limit.",
         );
