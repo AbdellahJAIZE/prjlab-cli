@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "PrjLab account and private repository API",
-    "version": "0.7.0-development",
+    "version": "0.8.0-development",
     "description": "Private repositories, bounded encrypted objects, immutable versions and resumable upload sessions.",
     "license": {
       "name": "MIT",
@@ -3836,6 +3836,87 @@
           }
         }
       }
+    },
+    "/api/v1/repositories/{id}/secret-scan": {
+      "get": {
+        "operationId": "scanRepositorySecrets",
+        "summary": "scanRepositorySecrets",
+        "x-required-access": "owner",
+        "description": "Credential-shaped names and content in the latest version (names of rules only, never the matched text). Shown before publishing.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Required to exactly match configured WEB_ORIGIN for browser session mutations. Bearer requests do not require Origin."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretScan"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient role or invalid browser Origin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Missing account or inaccessible resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4004,6 +4085,9 @@
           "visibility": {
             "type": "string",
             "enum": ["private", "public"]
+          },
+          "context_public": {
+            "type": "boolean"
           }
         },
         "required": [],
@@ -4215,6 +4299,10 @@
           "visibility": {
             "type": "string",
             "enum": ["private", "public"]
+          },
+          "context_public": {
+            "type": "boolean",
+            "description": "Owner published memory and sessions to non-members of a public repository. False: non-members never receive memory, session or .prjcontext/ entries."
           }
         },
         "required": [
@@ -4228,7 +4316,8 @@
           "updated_at",
           "versions",
           "latest",
-          "visibility"
+          "visibility",
+          "context_public"
         ],
         "additionalProperties": false
       },
@@ -5167,6 +5256,64 @@
         },
         "required": ["id", "handle", "display_name", "bio", "created_at"],
         "additionalProperties": false
+      },
+      "SecretFinding": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "kind", "rules", "matches"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "kind": {
+            "enum": ["file", "instruction", "memory", "session"]
+          },
+          "rules": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          "matches": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "SecretScan": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["version", "scanned", "truncated", "findings"],
+        "properties": {
+          "version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scanned": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "findings": {
+            "type": "array",
+            "maxItems": 1000,
+            "items": {
+              "$ref": "#/components/schemas/SecretFinding"
+            }
+          }
+        }
       }
     }
   }

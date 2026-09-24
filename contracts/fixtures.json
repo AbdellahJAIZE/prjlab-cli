@@ -55,7 +55,8 @@
       "sessions": 3,
       "bytes": 186000
     },
-    "visibility": "private"
+    "visibility": "private",
+    "context_public": false
   },
   "Repositories": [
     {
@@ -322,7 +323,8 @@
           "sessions": 3,
           "bytes": 186000
         },
-        "visibility": "private"
+        "visibility": "private",
+        "context_public": false
       }
     ]
   },
@@ -332,5 +334,24 @@
     "display_name": "Alice Example",
     "bio": "Builds small tools.",
     "created_at": "2026-01-01T00:00:00.000Z"
+  },
+  "SecretScan": {
+    "version": "00000000-0000-4000-8000-000000000001",
+    "scanned": 42,
+    "truncated": false,
+    "findings": [
+      {
+        "path": "deploy/.env.production",
+        "kind": "file",
+        "rules": ["dotenv-file"],
+        "matches": 1
+      },
+      {
+        "path": ".prjcontext/agents/claude-code/sessions/abc.jsonl.gz",
+        "kind": "session",
+        "rules": ["aws-access-key-id"],
+        "matches": 2
+      }
+    ]
   }
 }
