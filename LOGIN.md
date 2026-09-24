@@ -49,16 +49,21 @@ authorization codes or credentials. Imported project instructions never run.
 
 ## Secure storage
 
-MSAL Node handles authorization and token refresh. MSAL Node Extensions uses
-Windows DPAPI, macOS Keychain or Linux Secret Service. There is no plaintext fallback.
-The encrypted cache includes refresh tokens and is scoped to one application/server.
-Metadata/lock files live under `~/.prjlab/auth/<scope-hash>/`; Linux/macOS cache
-markers contain no tokens. Windows cache bytes are DPAPI-encrypted.
+MSAL Node handles authorization and token refresh. The saved session (MSAL token
+cache, including refresh tokens) is encrypted with AES-256-GCM and written to
+`~/.prjlab/auth/<scope-hash>/session.enc` (mode 0600, atomic replace). The random
+256-bit key lives only in the OS credential store, through
+[`@napi-rs/keyring`](https://github.com/Brooooooklyn/keyring-node): Windows
+Credential Manager, macOS Keychain or Linux Secret Service (never the session-only
+kernel keyring). The file alone reveals nothing; the key is bound to one
+application/server scope, and a tampered file is refused. There is no plaintext
+fallback: without an available, unlocked credential store, sign-in fails clearly.
 
-Normal npm installation runs the native keytar dependency's install step.
-If installing with `--ignore-scripts`, run `npm rebuild keytar` before login.
-Linux requires libsecret and an available, unlocked Secret Service. Headless systems
-without one fail clearly; they do not write a plaintext token file.
+The native module ships prebuilt for each platform as an optional dependency; no
+install script runs. CLI 0.4.0 replaced the archived `keytar` module (and the
+deprecated `prebuild-install` warning it caused); sessions saved by 0.3.x cannot
+be read by 0.4.0, so run `prj login` once after upgrading. The old entry is removed
+on the next login or logout where the OS store allows it.
 
 Only one credential operation per configuration runs at a time. Failed writes
 attempt verified restoration of the prior encrypted cache. If the store cannot
@@ -81,4 +86,4 @@ real browser sign-in against prjlab.com from an isolated keyring.
 References:
 
 - [Microsoft External ID CLI example](https://learn.microsoft.com/en-us/samples/azure-samples/ms-identity-ciam-javascript-tutorial/ms-identity-ciam-javascript-tutorial-6-sign-in-node-cli-app/).
-- [MSAL Node Extensions storage](https://github.com/AzureAD/microsoft-authentication-library-for-js/blob/dev/extensions/msal-node-extensions/README.md).
+- [@napi-rs/keyring](https://github.com/Brooooooklyn/keyring-node) (Rust `keyring` crate bindings).

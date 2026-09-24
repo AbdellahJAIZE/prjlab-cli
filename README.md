@@ -23,11 +23,11 @@ prj --version
 Every GitHub release also carries the identical tarball
 (`npm install -g https://github.com/AbdellahJAIZE/prjlab-cli/releases/download/vX.Y.Z/prjlab-cli-X.Y.Z.tgz`).
 
-Sign-in stores an encrypted credential in your operating system's keychain
-(Windows Credential Manager, macOS Keychain, or Linux Secret Service). On Linux
-install `libsecret` and make sure a keyring such as GNOME Keyring is unlocked; there
-is no plaintext fallback. If you installed with `--ignore-scripts`, run
-`npm rebuild -g keytar` once.
+Sign-in keeps your session encrypted with a key held in your operating system's
+credential store (Windows Credential Manager, macOS Keychain, or Linux Secret
+Service). On Linux make sure a keyring such as GNOME Keyring is running and
+unlocked; there is no plaintext fallback. The native part ships prebuilt, so no
+install script or compiler is needed.
 
 ## Quick start
 
@@ -36,10 +36,11 @@ is no plaintext fallback. If you installed with `--ignore-scripts`, run
 3. In your project directory:
 
 ```sh
-prj login                       # opens your browser once
-prj init                        # creates .prj/ (add it to .gitignore)
-prj push you/your-repo          # upload this directory as version 1
-prj push -m "what changed"      # later: describe the version (up to 200 characters)
+prj login                                 # opens your browser once
+prj init                                  # creates .prj/ (add it to .gitignore)
+prj remote add origin you/your-repo       # link this directory, like git
+prj push -m "First version"               # upload this directory as version 1
+prj push -m "what changed"                # later: describe the version (up to 200 characters)
 ```
 
 4. On another machine, or for a friend you invited:
@@ -50,6 +51,11 @@ cd your-repo
 prj pull                        # later: fetch the newest version
 prj push                        # the directory remembers its repository
 ```
+
+Git habits carry over: `prj remote -v` shows the link, `prj push origin main` and
+`prj push -u origin main` work (PrjLab has no branches, every push is a new
+version), and the repository page link (`https://prjlab.com/you/your-repo`) works
+wherever `you/your-repo` does.
 
 Run `prj --help` for the full command list. The guide with screenshots is at
 [prjlab.com/docs](https://prjlab.com/docs).
@@ -85,7 +91,7 @@ The CLI talks to prjlab.com by default. To point it at another PrjLab server set
 `PRJ_SERVER`, `PRJ_AUTHORITY`, `PRJ_CLIENT_ID` and `PRJ_API_SCOPE` (see LOGIN.md).
 
 ```sh
-npm ci --ignore-scripts && npm rebuild keytar
+npm ci --ignore-scripts
 npm run build
 npm run typecheck && npm test && npm run test:package
 ```

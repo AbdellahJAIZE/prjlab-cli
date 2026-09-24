@@ -16,8 +16,11 @@ test("help describes actual capabilities", () => {
     "export <snapshot-id> <new-dir>",
     "restore <snapshot-id>",
     "recover",
-    "push [<handle>/<name>]",
-    "pull [<handle>/<name>]",
+    "push [origin]",
+    "pull [origin]",
+    "remote add origin <handle>/<name>",
+    "remote -v",
+    "remote remove origin",
     "clone <handle>/<name> [<dir>]",
   ])
     assert.ok(r.stdout.includes(command), command);

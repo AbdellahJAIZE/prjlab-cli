@@ -1,6 +1,6 @@
 {
   "name": "prjlab-cli",
-  "version": "0.3.4",
+  "version": "0.4.0",
   "description": "PrjLab command-line client: push, pull and clone your projects with their context.",
   "license": "MIT",
   "homepage": "https://prjlab.com",
@@ -52,7 +52,7 @@
   },
   "dependencies": {
     "@azure/msal-node": "6.0.1",
-    "@azure/msal-node-extensions": "5.5.1",
+    "@napi-rs/keyring": "2.1.0",
     "ignore": "7.0.9"
   }
 }

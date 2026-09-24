@@ -6,12 +6,22 @@ from the web app works too.
 
 ```
 prj init
-prj push <handle>/<name>              # first push links this directory
-prj push                              # later pushes remember the repository
+prj remote add origin <handle>/<name> # link this directory (like git remote add)
+prj remote -v                         # show the link
+prj push                              # upload; also: prj push origin main, prj push .
+prj push <handle>/<name>              # alternative: the first push links too
 prj push -m "what changed"            # describe the version; shown in the web app
 prj clone <handle>/<name> [<dir>]     # new directory, defaults to <name>
 prj pull                              # bring the directory up to the newest version
+prj remote set-url origin <handle>/<name>  # point at another repository
+prj remote remove origin              # forget the link; files and snapshots stay
 ```
+
+PrjLab keeps one remote, `origin`, and has no branches: `prj push origin main` and
+`prj push -u origin main` are accepted out of habit and upload a new version. A
+repository page link such as `https://prjlab.com/alice/notes` works wherever
+`<handle>/<name>` does. `prj remote add` checks that the repository exists and that
+you can reach it, without uploading anything.
 
 Push and pull act on the current initialized directory. `<handle>/<name>` is looked
 up in your own and shared repositories, so a repository you were not invited to is

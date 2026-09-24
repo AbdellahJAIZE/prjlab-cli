@@ -435,3 +435,82 @@ export async function clone(
   await initialize(target);
   return pull(target, origin, repository, api, signal);
 }
+/** `prj remote add origin …`: link this directory to a repository without uploading. */
+export async function addRemote(
+  root: string,
+  origin: string,
+  repository: string,
+  name: string | null,
+  replace = false,
+): Promise<"added" | "unchanged"> {
+  return withSync(root, async (project) => {
+    const current = await project.readLink();
+    if (current !== null) {
+      const existing = current as {
+        repository?: unknown;
+        origin?: unknown;
+        pendingPush?: unknown;
+        pendingPull?: unknown;
+      };
+      // Same repository: keep the adopted base so the next push stays a fast-forward.
+      if (existing.repository === repository && existing.origin === origin) {
+        if (name !== null) await project.writeName(name);
+        return "unchanged";
+      }
+      if (!replace)
+        throw new ProjectError(
+          "Remote origin already exists. Use prj remote set-url origin <handle>/<name> to change it.",
+        );
+      if (existing.pendingPush || existing.pendingPull)
+        throw new ProjectError(
+          "A push or pull is unfinished. Run it again to complete it before changing the remote.",
+        );
+      await project.removeLink();
+    }
+    await project.writeLink(link(null, origin, repository));
+    await project.writeName(name);
+    return "added";
+  });
+}
+/** `prj remote remove origin`: forget the link; files and snapshots stay. */
+export async function removeRemote(root: string): Promise<boolean> {
+  return withSync(root, async (project) => {
+    const current = (await project.readLink()) as {
+      pendingPush?: unknown;
+      pendingPull?: unknown;
+    } | null;
+    if (current === null) return false;
+    if (current.pendingPush || current.pendingPull)
+      throw new ProjectError(
+        "A push or pull is unfinished. Run it again to complete it before removing the remote.",
+      );
+    await project.removeLink();
+    return true;
+  });
+}
+/** `prj remote -v`: the linked repository, by name when known. */
+export async function showRemote(
+  root: string,
+): Promise<{ origin: string; repository: string; name: string | null } | null> {
+  return withSync(root, async (project) => {
+    const current = (await project.readLink()) as {
+      origin?: unknown;
+      repository?: unknown;
+    } | null;
+    if (
+      current === null ||
+      typeof current.origin !== "string" ||
+      typeof current.repository !== "string"
+    )
+      return null;
+    return {
+      origin: current.origin,
+      repository: current.repository,
+      name: await project.readName(),
+    };
+  });
+}
+/** Records the <handle>/<name> a push or clone used, for prj remote -v. */
+export async function rememberRemoteName(root: string, name: string) {
+  await withSync(root, (project) => project.writeName(name));
+}

@@ -133,6 +133,10 @@ async function atomic(file: string, data: string | Buffer) {
 async function state(root: string) {
   const base = await realpath(root),
     meta = path.join(base, ".prj");
+  if (!(await statOrMissing(meta)))
+    throw new ProjectError(
+      "This folder is not set up for PrjLab yet. Run prj init first.",
+    );
   await directory(meta);
   await directory(path.join(meta, "objects"));
   await directory(path.join(meta, "snapshots"));
@@ -688,6 +692,9 @@ export async function withSync<T>(
   work: (project: {
     readLink: () => Promise<unknown>;
     writeLink: (value: unknown) => Promise<void>;
+    removeLink: () => Promise<void>;
+    readName: () => Promise<string | null>;
+    writeName: (name: string | null) => Promise<void>;
     capture: () => Promise<{ id: string; manifest: Snapshot }>;
     manifest: (id: string) => Promise<Snapshot>;
     bytes: (entry: Entry) => Promise<Buffer>;
@@ -718,6 +725,29 @@ export async function withSync<T>(
         if (Buffer.byteLength(json) > 4096)
           throw new ProjectError("Remote state exceeds limit.");
         await atomic(path.join(meta, "remote.json"), json);
+      },
+      removeLink: async () => {
+        for (const file of ["remote.json", "remote-name"])
+          await unlink(path.join(meta, file)).catch(
+            (error: NodeJS.ErrnoException) => {
+              if (error.code !== "ENOENT") throw error;
+            },
+          );
+      },
+      // Display name only (<handle>/<name>); the link itself is the repository ID.
+      readName: async () => {
+        const file = path.join(meta, "remote-name");
+        if (!(await statOrMissing(file))) return null;
+        const name = (await readSafe(file, 200)).toString("utf8").trim();
+        return /^[a-z0-9-]{1,39}\/[a-z0-9-]{1,63}$/.test(name) ? name : null;
+      },
+      writeName: async (name) => {
+        const file = path.join(meta, "remote-name");
+        if (name === null)
+          await unlink(file).catch((error: NodeJS.ErrnoException) => {
+            if (error.code !== "ENOENT") throw error;
+          });
+        else await atomic(file, name + "\n");
       },
       capture: async () => {
         const manifest = await scan(base, (entry, data) =>

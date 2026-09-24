@@ -5,7 +5,7 @@ const args = process.argv.slice(2);
 const auth = ["login", "logout", "whoami"].includes(args[0] ?? "")
   ? await (await import("./auth-commands.js")).authCommands(args)
   : undefined;
-const sync = ["push", "pull", "clone"].includes(args[0] ?? "")
+const sync = ["push", "pull", "clone", "remote"].includes(args[0] ?? "")
   ? await (await import("./sync-commands.js")).syncCommands(args)
   : undefined;
 const result = auth ?? sync ?? (await local(args)) ?? run(args);
