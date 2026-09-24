@@ -1,7 +1,20 @@
 import { homedir } from "node:os";
 import path from "node:path";
-import { mkdir, lstat, open, unlink, realpath } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
+import {
+  mkdir,
+  lstat,
+  open,
+  unlink,
+  realpath,
+  readFile,
+  rename,
+} from "node:fs/promises";
+import {
+  randomUUID,
+  randomBytes,
+  createCipheriv,
+  createDecipheriv,
+} from "node:crypto";
 import {
   credentialScope,
   LoginError,
@@ -63,65 +76,141 @@ export async function withCredentialLock<T>(
     await unlink(lock);
   }
 }
+// Envelope storage: a random AES-256-GCM key lives in the OS credential store
+// (Windows Credential Manager, macOS Keychain, Linux Secret Service); the
+// encrypted session lives in a private file next to the lock. The file alone
+// reveals nothing, the key entry stays tiny (Windows caps credential blobs at
+// 2,560 bytes), and there is no plaintext fallback.
+const SERVICE = "PrjLab CLI";
+const FILE = "session.enc";
+const FORMAT = 1;
+const LEGACY_FILES = ["cache.bin", "test.cache", "cache.bin.lockfile"];
+async function privateFile(file: string) {
+  const stat = await lstat(file).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return undefined;
+    throw error;
+  });
+  if (stat && (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1))
+    throw new Error("unsafe credential file");
+  return stat;
+}
+export interface KeyEntry {
+  getPassword(): Promise<string | undefined | null>;
+  setPassword(value: string): Promise<void>;
+  deletePassword(): Promise<boolean>;
+}
+export type KeyEntryFactory = (account: string) => Promise<KeyEntry>;
+const nativeEntry: KeyEntryFactory = async (account) => {
+  // Lazy import keeps help and local commands independent of native keychain availability.
+  const { AsyncEntry } = await import("@napi-rs/keyring");
+  const entry = new AsyncEntry(SERVICE, account, {
+    linux: { store: "secret-service" },
+  });
+  return {
+    getPassword: () => entry.getPassword(),
+    setPassword: (value) => entry.setPassword(value),
+    deletePassword: () => entry.deletePassword(),
+  };
+};
 export async function secureStore(
   config: LoginConfig,
   directory: string,
+  entries: KeyEntryFactory = nativeEntry,
 ): Promise<CredentialStore> {
+  const scope = credentialScope(config);
+  const file = path.join(directory, FILE);
+  const aad = Buffer.from(`prjlab-session:${FORMAT}:${scope}`);
+  let key: KeyEntry, legacy: KeyEntry;
   try {
-    const cachePath = path.join(directory, "cache.bin");
-    const existing = await lstat(cachePath).catch(
-      (error: NodeJS.ErrnoException) => {
-        if (error.code === "ENOENT") return undefined;
-        throw error;
-      },
-    );
-    if (
-      existing &&
-      (!existing.isFile() || existing.isSymbolicLink() || existing.nlink !== 1)
-    )
-      throw new Error();
-    const probePath = path.join(directory, "test.cache");
-    const probe = await lstat(probePath).catch(
-      (error: NodeJS.ErrnoException) => {
-        if (error.code === "ENOENT") return undefined;
-        throw error;
-      },
-    );
-    if (
-      probe &&
-      (!probe.isFile() || probe.isSymbolicLink() || probe.nlink !== 1)
-    )
-      throw new Error();
-    // Lazy import keeps help and local commands independent of native keychain availability.
-    const { PersistenceCreator, DataProtectionScope } =
-      await import("@azure/msal-node-extensions");
-    const persistence = await PersistenceCreator.createPersistence({
-      cachePath,
-      dataProtectionScope: DataProtectionScope.CurrentUser,
-      serviceName: "PrjLab CLI",
-      accountName: credentialScope(config),
-      usePlaintextFileOnLinux: false,
-      loggerOptions: { piiLoggingEnabled: false, loggerCallback: () => {} },
-    });
-    return {
-      load: async () => {
-        if (process.platform === "win32") {
-          const stat = await lstat(cachePath).catch(
-            (error: NodeJS.ErrnoException) => {
-              if (error.code === "ENOENT") return null;
-              throw error;
-            },
-          );
-          if (!stat || stat.size === 0) return null;
-        }
-        return persistence.load();
-      },
-      save: (value) => persistence.save(value),
-      delete: () => persistence.delete(),
-    };
+    await privateFile(file);
+    key = await entries(`${scope}:session-key`);
+    // 0.3.x stored the whole session under the bare scope (keytar); on macOS the
+    // same entry is reachable here and is removed on the next save or logout.
+    legacy = await entries(scope);
   } catch {
     throw new LoginError(
-      "Secure OS credential storage is unavailable. Enable your keychain/Secret Service and install the native credential dependency. Tokens were not saved as plain text.",
+      "Secure OS credential storage is unavailable. Enable your keychain/Secret Service. Tokens were not saved as plain text.",
     );
   }
+  const readKey = async () => {
+    const raw = await key.getPassword();
+    if (!raw) return null;
+    const bytes = Buffer.from(raw, "base64");
+    if (bytes.length !== 32) throw new Error("invalid session key");
+    return bytes;
+  };
+  const cleanLegacy = async () => {
+    await legacy.deletePassword().catch(() => false);
+    for (const name of LEGACY_FILES)
+      await unlink(path.join(directory, name)).catch(() => {});
+  };
+  return {
+    load: async () => {
+      const stat = await privateFile(file);
+      if (!stat) return null;
+      if (stat.size > 8 * 1024 * 1024) throw new Error("credential too large");
+      const secret = await readKey();
+      if (!secret) return null;
+      const blob = await readFile(file);
+      if (blob.length < 1 + 12 + 16 || blob[0] !== FORMAT)
+        throw new Error("invalid credential file");
+      const decipher = createDecipheriv(
+        "aes-256-gcm",
+        secret,
+        blob.subarray(1, 13),
+      );
+      decipher.setAAD(aad);
+      decipher.setAuthTag(blob.subarray(blob.length - 16));
+      return Buffer.concat([
+        decipher.update(blob.subarray(13, blob.length - 16)),
+        decipher.final(),
+      ]).toString("utf8");
+    },
+    save: async (value) => {
+      let secret = await readKey();
+      if (!secret) {
+        secret = randomBytes(32);
+        await key.setPassword(secret.toString("base64"));
+        if (!(await readKey())?.equals(secret))
+          throw new Error("session key was not stored");
+      }
+      const iv = randomBytes(12);
+      const cipher = createCipheriv("aes-256-gcm", secret, iv);
+      cipher.setAAD(aad);
+      const body = Buffer.concat([
+        cipher.update(Buffer.from(value, "utf8")),
+        cipher.final(),
+      ]);
+      const blob = Buffer.concat([
+        Buffer.from([FORMAT]),
+        iv,
+        body,
+        cipher.getAuthTag(),
+      ]);
+      const temporary = path.join(directory, `${FILE}.${randomUUID()}.tmp`);
+      const handle = await open(temporary, "wx", 0o600);
+      try {
+        await handle.writeFile(blob);
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+      try {
+        await rename(temporary, file);
+      } catch (error) {
+        await unlink(temporary).catch(() => {});
+        throw error;
+      }
+      await cleanLegacy();
+    },
+    delete: async () => {
+      const existed = (await privateFile(file)) !== undefined;
+      await unlink(file).catch((error: NodeJS.ErrnoException) => {
+        if (error.code !== "ENOENT") throw error;
+      });
+      const removed = await key.deletePassword();
+      await cleanLegacy();
+      return existed || removed;
+    },
+  };
 }
