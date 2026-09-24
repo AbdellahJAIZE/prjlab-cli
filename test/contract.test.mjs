@@ -23,6 +23,12 @@ test("every operation has a unique ID and a documented success schema", () => {
             definition.content["application/octet-stream"]["x-max-bytes"],
             5242880,
           );
+        } else if (definition.content["application/zip"]) {
+          // One version: at most 100 MiB of files (the push limit).
+          assert.equal(
+            definition.content["application/zip"]["x-max-bytes"],
+            104857600,
+          );
         } else {
           const name = definition.content["application/json"].schema.$ref
             .split("/")
@@ -32,7 +38,7 @@ test("every operation has a unique ID and a documented success schema", () => {
       }
     }
   }
-  assert.equal(ids.size, 34);
+  assert.equal(ids.size, 35);
 });
 test("response contract rejects leaked fields, malformed identity and invented statuses", () => {
   assert.throws(() =>
