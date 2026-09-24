@@ -534,9 +534,11 @@ export async function restoreClaude(
       >;
       const current = projectEntry(config.parsed, root);
       const existing = (current?.value ?? {}) as Record<string, unknown>;
-      const merged = { ...picked, ...existing };
-      if (JSON.stringify(merged) === JSON.stringify(existing))
-        report.config = "unchanged";
+      // Local values win: only keys this machine does not have yet are added.
+      const added = Object.keys(picked).filter((k) => !(k in existing));
+      const merged = { ...existing };
+      for (const k of added) merged[k] = picked[k];
+      if (!added.length) report.config = "unchanged";
       else {
         await mkdir(layout.backups, { recursive: true, mode: 0o700 });
         await atomicWrite(

@@ -273,6 +273,11 @@ test("restore on another machine and path: re-keyed history, localized paths, me
   );
   assert.equal(again.memoryWritten + again.sessionsWritten, 0);
   assert.equal(again.config, "unchanged");
+  assert.equal(
+    (await readdir(b.layout.backups)).length,
+    1,
+    "no rewrite, no new backup",
+  );
   // No Claude on the machine: history is written, no config is created.
   const c = await machine(t);
   const bare = await restoreClaude("/x/y", captured.files, new Map(), c.layout);
