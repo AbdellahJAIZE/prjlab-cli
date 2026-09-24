@@ -3,7 +3,44 @@ import path from "node:path";
 import { initialize } from "./snapshot.js";
 import { randomUUID } from "node:crypto";
 import { withSync, ProjectError } from "./snapshot.js";
-import type { ContextSummary, ContextRestore } from "./context-mirror.js";
+import {
+  isMirrorPath,
+  type ContextSummary,
+  type ContextRestore,
+} from "./context-mirror.js";
+export interface Changes {
+  added: string[];
+  modified: string[];
+  deleted: string[];
+}
+export interface SyncChanges {
+  files: Changes;
+  context: Changes;
+  total: number;
+}
+/** What differs between two snapshots, split into folder files and AI context. */
+export function diffSnapshots(
+  before: Snapshot | null,
+  after: Snapshot,
+): SyncChanges {
+  const empty = (): Changes => ({ added: [], modified: [], deleted: [] });
+  const out = {
+    files: empty(),
+    context: empty(),
+    total: after.entries.filter((e) => !isMirrorPath(e.path)).length,
+  };
+  const old = new Map((before?.entries ?? []).map((e) => [e.path, e.hash]));
+  const now = new Map(after.entries.map((e) => [e.path, e.hash]));
+  for (const [p, h] of now) {
+    const bucket = isMirrorPath(p) ? out.context : out.files;
+    if (!old.has(p)) bucket.added.push(p);
+    else if (old.get(p) !== h) bucket.modified.push(p);
+  }
+  for (const p of old.keys())
+    if (!now.has(p))
+      (isMirrorPath(p) ? out.context : out.files).deleted.push(p);
+  return out;
+}
 import { TransportError } from "./http.js";
 import type { Snapshot } from "./manifest.js";
 export interface SyncApi {
@@ -212,6 +249,16 @@ export async function push(
         sessions: options.sessions !== false,
       });
       context = captured.context;
+      // Like git: nothing changed since the last push or pull, no new version.
+      if (state.baseVersion !== null && captured.id === state.baseSnapshot)
+        return {
+          version: state.baseVersion,
+          parent: state.baseVersion,
+          files: captured.manifest.entries.length,
+          context,
+          upToDate: true,
+          changes: diffSnapshots(captured.manifest, captured.manifest),
+        };
       // Mirrors the server's MANIFEST_BYTE_LIMIT (512 KiB): 1,000 entries
       // with 240-character paths fit; anything larger is refused up front.
       if (Buffer.byteLength(JSON.stringify(captured.manifest)) > 512 * 1024)
@@ -334,11 +381,22 @@ export async function push(
     const result = receipt(response.data);
     if (response.status !== 200 || result.parent !== pending.parent)
       throw new TransportError("response");
+    const changes = diffSnapshots(
+      state.baseSnapshot ? await project.manifest(state.baseSnapshot) : null,
+      manifest,
+    );
     state.baseVersion = result.id;
     state.baseSnapshot = pending.snapshot;
     delete state.pendingPush;
     await project.writeLink(state);
-    return { version: result.id, files: manifest.entries.length, context };
+    return {
+      version: result.id,
+      parent: pending.parent,
+      files: manifest.entries.length,
+      context,
+      upToDate: false,
+      changes,
+    };
   });
 }
 export async function pull(
@@ -365,7 +423,7 @@ export async function pull(
     if (!state.pendingPull) {
       if (tip.id === state.baseVersion) {
         await project.writeLink(state);
-        return { version: tip.id, changed: 0 };
+        return { version: tip.id, changed: 0, upToDate: true };
       }
       if (tip.id === null) throw new TransportError("response");
       const response = await api.request(
@@ -408,6 +466,11 @@ export async function pull(
       state.baseSnapshot,
     );
     const previousBase = state.baseSnapshot;
+    const previousVersion = state.baseVersion;
+    const changes = diffSnapshots(
+      previousBase ? await project.manifest(previousBase) : null,
+      await project.manifest(state.pendingPull.snapshot),
+    );
     state.baseVersion = state.pendingPull.version;
     state.baseSnapshot = state.pendingPull.snapshot;
     delete state.pendingPull;
@@ -426,9 +489,12 @@ export async function pull(
     }
     return {
       version: state.baseVersion,
+      parent: previousVersion,
       changed: adopted.changed,
       context,
       contextError,
+      upToDate: false,
+      changes,
     };
   });
 }

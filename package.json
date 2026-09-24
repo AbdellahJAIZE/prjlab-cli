@@ -1,6 +1,6 @@
 {
   "name": "prjlab-cli",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "PrjLab command-line client: push, pull and clone your projects with their context.",
   "license": "MIT",
   "homepage": "https://prjlab.com",

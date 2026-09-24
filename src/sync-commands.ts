@@ -7,6 +7,8 @@ import {
 import { LoginSession } from "./login-session.js";
 import { ProjectError } from "./snapshot.js";
 import { TransportError } from "./http.js";
+import path from "node:path";
+import type { Changes, SyncChanges } from "./sync.js";
 import {
   describeSummary,
   describeRestore,
@@ -141,6 +143,103 @@ async function remoteCommand(args: readonly string[], signal: AbortSignal) {
   }
   throw new ProjectError(REMOTE_USAGE);
 }
+const short = (id: string | null | undefined) => (id ? id.slice(0, 8) : "");
+function listChanges(c: Changes, limit = 10) {
+  const rows = [
+    ...c.added.map((p) => `   + ${p}`),
+    ...c.modified.map((p) => `   M ${p}`),
+    ...c.deleted.map((p) => `   - ${p}`),
+  ];
+  return rows.length > limit
+    ? [...rows.slice(0, limit), `   … and ${rows.length - limit} more`]
+    : rows;
+}
+function countLine(c: Changes, noun: string) {
+  const n = c.added.length + c.modified.length + c.deleted.length;
+  if (!n) return null;
+  const parts = [
+    c.added.length && `${c.added.length} added`,
+    c.modified.length && `${c.modified.length} modified`,
+    c.deleted.length && `${c.deleted.length} deleted`,
+  ].filter(Boolean);
+  return ` ${n} ${noun}${n === 1 ? "" : "s"} changed: ${parts.join(", ")}`;
+}
+interface SyncResult {
+  version: string | null;
+  parent?: string | null;
+  upToDate?: boolean;
+  changes?: SyncChanges;
+  context?: unknown[];
+  contextError?: string;
+  message?: string;
+}
+/** git-like output: where, which versions, what changed, what context travelled. */
+export function formatSync(
+  command: "push" | "pull" | "clone",
+  where: string,
+  folder: string,
+  result: SyncResult,
+): string[] {
+  const lines: string[] = [];
+  if (command === "push" && result.upToDate) {
+    lines.push("Everything up-to-date.");
+    if (result.context?.length)
+      lines.push(
+        ...describeSummary(result.context as ContextSummary[]).map(
+          (l) => ` Context: ${l}`,
+        ),
+      );
+    return lines;
+  }
+  if (command !== "push" && result.upToDate) return ["Already up to date."];
+  if (command === "clone")
+    lines.push(`Cloned into '${path.basename(folder)}'.`);
+  lines.push(`${command === "push" ? "To" : "From"} ${where}`);
+  const range =
+    command === "clone"
+      ? `   version ${short(result.version)}`
+      : result.parent
+        ? `   ${short(result.parent)}..${short(result.version)}`
+        : `  * [new version] ${short(result.version)}`;
+  lines.push(
+    result.version
+      ? range + (result.message ? `  ${result.message}` : "")
+      : "  (empty repository)",
+  );
+  const c = result.changes;
+  if (c) {
+    const files = countLine(c.files, "file");
+    if (command === "clone" || !result.parent)
+      lines.push(` ${c.total} file${c.total === 1 ? "" : "s"}`);
+    else if (files) lines.push(files, ...listChanges(c.files));
+    else lines.push(" No file changes.");
+  }
+  if (result.context?.length) {
+    if (command === "push") {
+      const updated = c
+        ? c.context.added.length +
+          c.context.modified.length +
+          c.context.deleted.length
+        : 0;
+      lines.push(
+        ...describeSummary(result.context as ContextSummary[]).map(
+          (l) =>
+            ` Context: ${l}` +
+            (result.parent
+              ? ` (${updated} file${updated === 1 ? "" : "s"} updated)`
+              : ""),
+        ),
+      );
+    } else
+      lines.push(
+        ...describeRestore(result.context as ContextRestore[]).map(
+          (l) => ` ${l}`,
+        ),
+      );
+  }
+  if (result.contextError) lines.push(` ${result.contextError}`);
+  return lines;
+}
 export async function syncCommands(args: readonly string[]) {
   const command = args[0];
   if (!["push", "pull", "clone", "remote"].includes(command ?? ""))
@@ -220,20 +319,22 @@ export async function syncCommands(args: readonly string[]) {
           : process.cwd(),
         name,
       ).catch(() => {});
-    const lines = [
-      `${command === "push" ? "Pushed" : "Pulled"} version ${result.version ?? "empty"}.`,
-    ];
-    if ("context" in result && result.context?.length) {
-      if (command === "push")
-        lines.push(
-          ...describeSummary(result.context as ContextSummary[]).map(
-            (l) => `Context included. ${l}.`,
-          ),
-        );
-      else lines.push(...describeRestore(result.context as ContextRestore[]));
-    }
-    if ("contextError" in result && result.contextError)
-      lines.push(result.contextError);
+    const folder =
+      command === "clone"
+        ? (rest[1] ?? defaultCloneDirectory(ref!))
+        : process.cwd();
+    const known = await showRemote(folder).catch(() => null);
+    const where = known?.name
+      ? `${config.origin}/${known.name}`
+      : `${config.origin} (repository ${repository})`;
+    const lines = formatSync(
+      command as "push" | "pull" | "clone",
+      where,
+      folder,
+      command === "push" && "message" in options && options.message
+        ? { ...result, message: options.message as string }
+        : result,
+    );
     return {
       code: 0,
       stdout: lines.join("\n") + "\n",

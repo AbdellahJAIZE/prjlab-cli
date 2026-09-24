@@ -22,6 +22,10 @@ npm install -g prjlab-cli
 prj --version
 ```
 
+Update the same way: `npm install -g prjlab-cli`. `prj` prints a notice when a
+newer version is published (it asks registry.npmjs.org at most once a day, never
+in CI or when output is piped; `PRJ_NO_UPDATE_CHECK=1` turns it off).
+
 Every GitHub release also carries the identical tarball
 (`npm install -g https://github.com/AbdellahJAIZE/prjlab-cli/releases/download/vX.Y.Z/prjlab-cli-X.Y.Z.tgz`).
 
