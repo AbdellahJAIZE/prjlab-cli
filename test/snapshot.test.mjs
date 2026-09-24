@@ -7,6 +7,7 @@ import {
   writeFile,
   readFile,
   rm,
+  stat,
   symlink,
   link,
   access,
@@ -233,6 +234,27 @@ test("concurrent captures serialize through exclusive lock and preserve valid ob
   const latest = await capture(root);
   assert.equal(latest.entries[0].hash, hash("content"));
   assert.deepEqual((await status(root)).modified, []);
+});
+test("a lock left by a dead process is cleared; a live process keeps it", async (t) => {
+  const { root } = await fixture(t);
+  await writeFile(path.join(root, "file"), "content");
+  const lock = path.join(root, ".prj", "lock");
+  // A pid that cannot exist on this machine: the lock is stale.
+  await writeFile(lock, "999999999");
+  const captured = await capture(root);
+  assert.equal(captured.entries[0].hash, hash("content"));
+  assert.equal(await stat(lock).catch(() => null), null, "stale lock removed");
+  // Our own pid is alive: the lock is honoured and the message points at recover.
+  await writeFile(lock, String(process.pid));
+  await assert.rejects(
+    capture(root),
+    /Another operation is active.*prj recover/,
+  );
+  await rm(lock);
+  // Garbage in the lock is never trusted.
+  await writeFile(lock, "not-a-pid");
+  await assert.rejects(capture(root), /Another operation is active/);
+  await rm(lock);
 });
 test("symlinked metadata directory never writes outside project", async (t) => {
   const { root, dir } = await fixture(t);

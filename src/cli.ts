@@ -1,4 +1,4 @@
-export const VERSION = "0.3.2";
+export const VERSION = "0.3.3";
 const HELP = `prj ${VERSION} — push, pull and clone your projects with their context.
 
 Usage: prj <command> [arguments]

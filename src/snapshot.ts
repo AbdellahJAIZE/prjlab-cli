@@ -138,20 +138,46 @@ async function state(root: string) {
   await directory(path.join(meta, "snapshots"));
   return { base, meta };
 }
+/**
+ * A lock left behind by a process that no longer exists (killed push, power
+ * loss) is stale: it is removed and the operation proceeds. A lock held by a
+ * live process, or one whose contents cannot be read, stays untouched.
+ */
+async function clearStaleLock(lock: string): Promise<boolean> {
+  const pid = Number((await readSafe(lock, 20)).toString("utf8"));
+  if (!Number.isSafeInteger(pid) || pid <= 0 || pid === process.pid)
+    return false;
+  try {
+    process.kill(pid, 0);
+    return false;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ESRCH") return false;
+  }
+  try {
+    await unlink(lock);
+    return true;
+  } catch {
+    return false;
+  }
+}
 async function locked<T>(
   meta: string,
   work: () => Promise<T>,
   allowPending = false,
 ): Promise<T> {
+  const lock = path.join(meta, "lock");
   let fd;
-  try {
-    fd = await open(path.join(meta, "lock"), "wx", 0o600);
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === "EEXIST")
+  for (let attempt = 0; ; attempt++) {
+    try {
+      fd = await open(lock, "wx", 0o600);
+      break;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
+      if (attempt === 0 && (await clearStaleLock(lock))) continue;
       throw new ProjectError(
-        "Another operation is active. Inspect .prj/lock before removing a stale lock.",
+        "Another operation is active. If nothing is running, prj recover removes the stale lock.",
       );
-    throw e;
+    }
   }
   try {
     await fd.writeFile(String(process.pid));

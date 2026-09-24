@@ -62,6 +62,6 @@ during transfer fails with saved retry state. There is no background sync,
 automatic retry or credential logging.
 
 Limits: 5 MiB per file, 100 MiB per snapshot, 1,000 entries; the normalized
-remote manifest must fit in 60 KiB within a 64 KiB request. Repository object and
+remote manifest must fit in 512 KiB within a 1 MiB request. Repository object and
 version quotas also apply, and history keeps every pushed object, so a repository
 can fill with historical content.

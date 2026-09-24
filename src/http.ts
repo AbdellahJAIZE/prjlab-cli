@@ -189,7 +189,8 @@ export class ApiTransport {
     try {
       if (options.body !== undefined) {
         body = JSON.stringify(options.body);
-        if (body === undefined || Buffer.byteLength(body) > 64 * 1024)
+        // Manifests may hold 1,000 entries with 240-character paths.
+        if (body === undefined || Buffer.byteLength(body) > 1024 * 1024)
           throw new Error();
       }
     } catch {
