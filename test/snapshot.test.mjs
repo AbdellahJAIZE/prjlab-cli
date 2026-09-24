@@ -66,6 +66,7 @@ test("captures code and curated context; excludes secrets and tool trust setting
     added: [],
     modified: [],
     deleted: [],
+    context: [],
   });
 });
 test("respects nested ignore rules and explicit child exceptions", async (t) => {
@@ -98,6 +99,7 @@ test("status detects additions, edits and deletions without advancing baseline",
     added: ["new.txt"],
     modified: ["old.txt"],
     deleted: ["gone.txt"],
+    context: [],
   });
   assert.equal(
     (await readFile(path.join(root, ".prj", "HEAD"), "utf8")).trim(),

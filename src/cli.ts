@@ -1,4 +1,4 @@
-export const VERSION = "0.4.0";
+export const VERSION = "0.5.0";
 const HELP = `prj ${VERSION} — push, pull and clone your projects with their context.
 
 Usage: prj <command> [arguments]
@@ -13,7 +13,9 @@ Sync (needs login; create repositories at https://prjlab.com/new)
   remote -v                          Show the linked repository
   remote set-url origin <handle>/<name>
   remote remove origin               Forget the link (files stay)
-  push [origin] [-m "…"]             Upload this directory as a new version
+  push [origin] [-m "…"] [--no-sessions]
+                                     Upload this directory and its AI context
+                                     (Claude Code memory, sessions, settings)
   pull [origin]                      Bring this directory up to the latest version
   clone <handle>/<name> [<dir>]      Copy a repository into a new directory
   Like git: push and pull use origin; "prj push origin main" and
@@ -25,6 +27,7 @@ Sync (needs login; create repositories at https://prjlab.com/new)
 Local (offline)
   init                               Prepare this directory (creates .prj/)
   status                             Show what changed since the last snapshot
+  context                            Show the AI-tool context found for this folder
   snapshot                           Record a local snapshot
   export <snapshot-id> <new-dir>     Write a snapshot into a new directory
   restore <snapshot-id>              Return tracked files to a snapshot

@@ -3,6 +3,7 @@ import path from "node:path";
 import { initialize } from "./snapshot.js";
 import { randomUUID } from "node:crypto";
 import { withSync, ProjectError } from "./snapshot.js";
+import type { ContextSummary, ContextRestore } from "./context-mirror.js";
 import { TransportError } from "./http.js";
 import type { Snapshot } from "./manifest.js";
 export interface SyncApi {
@@ -61,6 +62,8 @@ export function pushMessage(input: string): string {
 }
 export interface PushOptions {
   message?: string;
+  /** false: leave AI-tool sessions out of this version (--no-sessions). */
+  sessions?: boolean;
 }
 // Splits `-m <text>` / `--message <text>` / `--message=<text>` out of push arguments.
 export function parsePushArguments(args: readonly string[]): {
@@ -77,7 +80,10 @@ export function parsePushArguments(args: readonly string[]): {
         throw new ProjectError("Give the push message after -m.");
       value = args[++i]!;
     } else if (arg.startsWith("--message=")) value = arg.slice(10);
-    else {
+    else if (arg === "--no-sessions") {
+      options.sessions = false;
+      continue;
+    } else {
       rest.push(arg);
       continue;
     }
@@ -196,12 +202,16 @@ export async function push(
 ) {
   const message =
     options.message === undefined ? undefined : pushMessage(options.message);
+  let context: ContextSummary[] = [];
   return withSync(root, async (project) => {
     const state = link(await project.readLink(), origin, repository);
     if (state.pendingPull)
       throw new ProjectError("Finish the pending pull before pushing.");
     if (!state.pendingPush) {
-      const captured = await project.capture();
+      const captured = await project.capture({
+        sessions: options.sessions !== false,
+      });
+      context = captured.context;
       // Mirrors the server's MANIFEST_BYTE_LIMIT (512 KiB): 1,000 entries
       // with 240-character paths fit; anything larger is refused up front.
       if (Buffer.byteLength(JSON.stringify(captured.manifest)) > 512 * 1024)
@@ -328,7 +338,7 @@ export async function push(
     state.baseSnapshot = pending.snapshot;
     delete state.pendingPush;
     await project.writeLink(state);
-    return { version: result.id, files: manifest.entries.length };
+    return { version: result.id, files: manifest.entries.length, context };
   });
 }
 export async function pull(
@@ -397,11 +407,29 @@ export async function pull(
       state.pendingPull.snapshot,
       state.baseSnapshot,
     );
+    const previousBase = state.baseSnapshot;
     state.baseVersion = state.pendingPull.version;
     state.baseSnapshot = state.pendingPull.snapshot;
     delete state.pendingPull;
     await project.writeLink(state);
-    return { version: state.baseVersion, changed: adopted.changed };
+    // Files are adopted and the link advanced; tool context is applied last
+    // and never fails the pull (its report says what was kept or skipped).
+    let context: ContextRestore[] = [];
+    let contextError: string | undefined;
+    try {
+      context = await project.applyContext(state.baseSnapshot!, previousBase);
+    } catch (error) {
+      contextError =
+        error instanceof Error && error.message === "unsafe context path"
+          ? "The version contains an unsafe context path; AI-tool context was not restored."
+          : "AI-tool context could not be restored; your files are up to date. Run prj pull again.";
+    }
+    return {
+      version: state.baseVersion,
+      changed: adopted.changed,
+      context,
+      contextError,
+    };
   });
 }
 
