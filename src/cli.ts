@@ -1,4 +1,4 @@
-export const VERSION = "0.5.0";
+export const VERSION = "0.6.0";
 const HELP = `prj ${VERSION} — push, pull and clone your projects with their context.
 
 Usage: prj <command> [arguments]
@@ -34,6 +34,9 @@ Local (offline)
   recover                            Finish an interrupted restore
 
   --help, --version
+
+prj tells you when a newer version is on npm (checked at most once a day;
+PRJ_NO_UPDATE_CHECK=1 turns it off). Update with: npm install -g prjlab-cli
 
 Guide: https://prjlab.com/docs
 `;

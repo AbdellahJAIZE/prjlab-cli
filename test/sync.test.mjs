@@ -198,7 +198,11 @@ test("stale push leaves base unchanged and permits pull; mismatched remote is re
   await push(a, origin, repo, api, signal);
   await pull(b, origin, repo, api, signal);
   const before = await state(b);
+  await writeFile(path.join(a, "from-a.txt"), "a");
   await push(a, origin, repo, api, signal);
+  // Nothing changed on b: like git, there is nothing to push.
+  assert.equal((await push(b, origin, repo, api, signal)).upToDate, true);
+  await writeFile(path.join(b, "from-b.txt"), "b");
   await assert.rejects(
     push(b, origin, repo, api, signal),
     (e) => e.code === "conflict",
