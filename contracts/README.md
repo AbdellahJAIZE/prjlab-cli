@@ -1,6 +1,6 @@
 # PrjLab development API contract
 
-Version: 0.6.0-development. Canonical source: this public CLI repository's
+Version: 0.8.0-development. Canonical source: this public CLI repository's
 `contracts/` directory. MIT licensed. No private implementation is needed to
 consume it; the platform vendors the same files for integration testing.
 
@@ -25,6 +25,7 @@ An inaccessible repository returns 404; a member without a required role gets 40
 | POST /repositories                                   | 201 summary             | registered account                                |
 | GET /repositories/{id}                               | 200 detail              | owner/writer/reader                               |
 | PATCH /repositories/{id}                             | 200 detail              | owner                                             |
+| GET /repositories/{id}/secret-scan                   | 200 scan                | owner                                             |
 | GET /repositories/{id}/access                        | 200 members/invitations | owner                                             |
 | POST /repositories/{id}/invitations                  | 201 invitation          | owner                                             |
 | DELETE /repositories/{id}/invitations/{invitationId} | 204                     | owner                                             |
@@ -118,3 +119,13 @@ incomplete_upload. Upload sessions remain unimplemented. CLI push/pull/clone are
 GET `/repositories/{id}/versions` returns `{items,nextCursor}` with at most50
 newest-first summaries (`id,parent,createdAt`). Pass returned opaque cursor as
 `before` for older results. Current membership is required on every page.
+
+## Context privacy (0.8)
+
+Repository details carry `context_public` (default false). For a public repository whose
+owner has not published context, non-members never receive memory or session entries, nor
+anything under `.prjcontext/`: version manifests and archives omit them and their objects
+are 404. Members and the owner see everything. `PATCH /repositories/{id}` accepts
+`context_public` (owner). `GET /repositories/{id}/secret-scan` lists credential-shaped file
+names and content in the latest version, by rule name and count only, never the matched
+text; the web app shows it before a repository or its context is published.
