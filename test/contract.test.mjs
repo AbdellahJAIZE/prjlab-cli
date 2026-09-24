@@ -23,6 +23,12 @@ test("every operation has a unique ID and a documented success schema", () => {
             definition.content["application/octet-stream"]["x-max-bytes"],
             5242880,
           );
+        } else if (definition.content["application/zip"]) {
+          // One version: at most 100 MiB of files (the push limit).
+          assert.equal(
+            definition.content["application/zip"]["x-max-bytes"],
+            104857600,
+          );
         } else {
           const name = definition.content["application/json"].schema.$ref
             .split("/")
