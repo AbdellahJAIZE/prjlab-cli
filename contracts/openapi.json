@@ -3726,6 +3726,116 @@
           }
         }
       }
+    },
+    "/api/v1/repositories/{id}/versions/{version}/archive": {
+      "get": {
+        "operationId": "downloadVersionArchive",
+        "summary": "Every file of one version as a zip archive (public repositories need no sign-in)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Zip archive; entries are the manifest paths under a <name>-<version8>/ folder",
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                },
+                "x-max-bytes": 104857600
+              }
+            }
+          },
+          "400": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Development version response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

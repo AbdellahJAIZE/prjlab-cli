@@ -42,12 +42,15 @@ function response(method, pathname, status, value, input) {
   );
   const schema = definition.content?.["application/json"]?.schema;
   if (schema) validate(schema.$ref.split("/").at(-1), value);
-  else if (definition.content?.["application/octet-stream"]) {
+  else if (
+    definition.content?.["application/octet-stream"] ||
+    definition.content?.["application/zip"]
+  ) {
+    const binary =
+      definition.content["application/octet-stream"] ??
+      definition.content["application/zip"];
     assert.ok(Buffer.isBuffer(value), "Binary response must be a Buffer");
-    assert.ok(
-      value.length <=
-        definition.content["application/octet-stream"]["x-max-bytes"],
-    );
+    assert.ok(value.length <= binary["x-max-bytes"]);
   } else
     assert.ok(
       value === undefined || value === "",
