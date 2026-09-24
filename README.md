@@ -1,10 +1,12 @@
 # PrjLab CLI
 
 `prj` moves a project **with its context** between machines and people: the files,
-the project instructions (`CLAUDE.md`, `AGENTS.md`), the notes you keep in
-`.prjcontext/memory/` and the conversations you choose to keep in
-`.prjcontext/sessions/`. Push from one machine, clone on another, and your coding
-assistant continues with the same understanding.
+the project instructions (`CLAUDE.md`, `AGENTS.md`), and what your AI coding tool
+keeps outside the folder. For Claude Code that is the project's memory, its
+sessions (so `claude --resume` lists them on the other machine) and its project
+settings (trust, allowed tools, MCP servers). Push from one machine, clone on
+another, and your coding assistant continues with the same understanding.
+Run `prj context` to see what would travel. Codex and other tools come next.
 
 The hosted service lives at [prjlab.com](https://prjlab.com). Repositories are
 private by default; you share them by inviting people by handle. This client is
@@ -70,6 +72,34 @@ settings. These name rules are not a complete secret scanner: review `prj status
 before pushing. Context is picked up from `.prjcontext/memory/`,
 `.prjcontext/sessions/` and `.prjcontext/instructions/`; `CLAUDE.md` and
 `AGENTS.md` count as instructions.
+
+### AI-tool context (Claude Code)
+
+`push` also captures, for this folder:
+
+- `~/.claude/projects/<folder>/memory/` — the project's memory;
+- `~/.claude/projects/<folder>/*.jsonl` and their subagent/tool-result files —
+  the sessions (`--no-sessions` leaves them out of one push; list
+  `.prjcontext/agents/*/sessions/**` in `.prjignore` to leave them out always);
+- the folder's entry in `~/.claude.json`, portable keys only (`allowedTools`,
+  `mcpServers`, trust and MCP approvals); cost, token and session telemetry stay.
+
+They appear in the version under `.prjcontext/agents/claude-code/` but are never
+written into your folder: `prj` keeps a copy in `.prj/context/`. Paths of this
+machine are replaced by placeholders, transcripts are gzipped and split into
+1 MiB segments so a longer session uploads only its new tail.
+
+`pull` and `clone` put them where Claude Code looks for **this** folder's path
+(the ClaudeHub re-key): memory and sessions under the matching
+`~/.claude/projects/` directory, with paths rewritten, and the settings merged into
+`~/.claude.json` (a backup goes to `~/.prjlab/backups/` first, your local values
+win). Local work is never overwritten: an edited memory file or a session that
+changed on both machines is kept and reported; a longer transcript replaces a
+shorter copy of itself. If Claude Code is running in the folder, settings are not
+merged; close it and pull again. `CLAUDE_CONFIG_DIR` is honoured.
+
+In a **public** repository, memory and sessions stay visible to members only unless
+the owner publishes them in Settings, after a credential scan.
 
 Limits: 1,000 files, 5 MiB per file, 100 MiB per snapshot. Symlinks, hard links,
 unsafe paths and case collisions are rejected.

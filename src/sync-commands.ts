@@ -8,6 +8,12 @@ import { LoginSession } from "./login-session.js";
 import { ProjectError } from "./snapshot.js";
 import { TransportError } from "./http.js";
 import {
+  describeSummary,
+  describeRestore,
+  type ContextSummary,
+  type ContextRestore,
+} from "./context-mirror.js";
+import {
   push,
   pull,
   clone,
@@ -25,7 +31,7 @@ import {
   type RepositoryRef,
 } from "./repository-ref.js";
 const USAGE =
-  'Usage: prj push [origin | <handle>/<name>] [-m "what changed"] | pull [origin | <handle>/<name>] | clone <handle>/<name> [<new-directory>] | remote [-v] | remote add origin <handle>/<name> | remote set-url origin <handle>/<name> | remote remove origin. A repository ID or a https://prjlab.com/<handle>/<name> link works in place of <handle>/<name>.';
+  'Usage: prj push [origin | <handle>/<name>] [-m "what changed"] [--no-sessions] | pull [origin | <handle>/<name>] | clone <handle>/<name> [<new-directory>] | remote [-v] | remote add origin <handle>/<name> | remote set-url origin <handle>/<name> | remote remove origin. A repository ID or a https://prjlab.com/<handle>/<name> link works in place of <handle>/<name>.';
 const REMOTE_USAGE =
   "Usage: prj remote [-v] | prj remote add origin <handle>/<name> | prj remote set-url origin <handle>/<name> | prj remote remove origin";
 // Accepts a repository page link the way git accepts a clone URL.
@@ -214,9 +220,23 @@ export async function syncCommands(args: readonly string[]) {
           : process.cwd(),
         name,
       ).catch(() => {});
+    const lines = [
+      `${command === "push" ? "Pushed" : "Pulled"} version ${result.version ?? "empty"}.`,
+    ];
+    if ("context" in result && result.context?.length) {
+      if (command === "push")
+        lines.push(
+          ...describeSummary(result.context as ContextSummary[]).map(
+            (l) => `Context included. ${l}.`,
+          ),
+        );
+      else lines.push(...describeRestore(result.context as ContextRestore[]));
+    }
+    if ("contextError" in result && result.contextError)
+      lines.push(result.contextError);
     return {
       code: 0,
-      stdout: `${command === "push" ? "Pushed" : "Pulled"} version ${result.version ?? "empty"}.\n`,
+      stdout: lines.join("\n") + "\n",
       stderr: "",
     };
   } catch (error) {

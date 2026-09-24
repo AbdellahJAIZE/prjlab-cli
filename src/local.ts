@@ -7,15 +7,22 @@ import {
   exportSnapshot,
   ProjectError,
 } from "./snapshot.js";
+import { detectContext, describeSummary } from "./context-mirror.js";
 export async function local(
   args: readonly string[],
   cwd = process.cwd(),
 ): Promise<{ code: number; stdout: string; stderr: string } | undefined> {
   const command = args[0];
   if (
-    !["init", "status", "snapshot", "export", "restore", "recover"].includes(
-      command ?? "",
-    )
+    ![
+      "init",
+      "status",
+      "snapshot",
+      "export",
+      "restore",
+      "recover",
+      "context",
+    ].includes(command ?? "")
   )
     return undefined;
   try {
@@ -56,6 +63,20 @@ export async function local(
       throw new ProjectError(
         "This command does not accept additional arguments.",
       );
+    if (command === "context") {
+      const summary = await detectContext(cwd);
+      return {
+        code: 0,
+        stdout: summary.length
+          ? [
+              "Context that travels with prj push (use --no-sessions to leave sessions out):",
+              ...describeSummary(summary).map((l) => `  ${l}`),
+              ...summary.flatMap((s) => s.warnings.map((w) => `  ${w}`)),
+            ].join("\n") + "\n"
+          : "No AI-tool context found for this folder yet. Supported: Claude Code.\n",
+        stderr: "",
+      };
+    }
     if (command === "init") {
       await initialize(cwd);
       return {

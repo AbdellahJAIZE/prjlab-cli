@@ -427,3 +427,131 @@ test("invalid push messages are rejected before any network call or reservation"
   assert.throws(() => parsePushArguments(["-m"]), /after -m/);
   assert.throws(() => parsePushArguments(["-m", "a", "-m", "b"]), /only once/);
 });
+test("two machines: Claude memory, sessions and settings travel with push and land re-keyed on pull, never in the folder", async (t) => {
+  const { mkdir } = await import("node:fs/promises");
+  const { computeSlug } = await import("../dist/claude-context.js");
+  const saved = {
+    HOME: process.env.HOME,
+    CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR,
+  };
+  t.after(() => {
+    for (const [k, v] of Object.entries(saved))
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+  });
+  async function machineHome() {
+    const home = await mkdtemp(path.join(tmpdir(), "prj-home-"));
+    t.after(() => rm(home, { recursive: true, force: true }));
+    return home;
+  }
+  const use = (home) => {
+    process.env.HOME = home;
+    process.env.CLAUDE_CONFIG_DIR = path.join(home, ".claude");
+  };
+  const homeA = await machineHome(),
+    homeB = await machineHome();
+  const a = await realpath(await workspace(t)),
+    b = await realpath(await workspace(t)),
+    api = server();
+  const line = (o) => JSON.stringify(o) + "\n";
+  // Machine A: Claude Code has history for folder a.
+  const dirA = path.join(homeA, ".claude", "projects", computeSlug(a));
+  await mkdir(path.join(dirA, "memory"), { recursive: true });
+  await writeFile(path.join(dirA, "memory", "MEMORY.md"), "- plan\n");
+  await writeFile(path.join(dirA, "s1.jsonl"), line({ cwd: a, n: 1 }));
+  await writeFile(
+    path.join(homeA, ".claude", ".claude.json"),
+    JSON.stringify({
+      projects: {
+        [a]: { hasTrustDialogAccepted: true, allowedTools: ["Bash(ls)"] },
+      },
+    }),
+  );
+  await mkdir(path.join(homeB, ".claude"), { recursive: true });
+  await writeFile(
+    path.join(homeB, ".claude", ".claude.json"),
+    JSON.stringify({ projects: {} }),
+  );
+  await writeFile(path.join(a, "README.md"), "hello");
+  use(homeA);
+  const pushed = await push(a, origin, repo, api, signal);
+  assert.deepEqual(
+    pushed.context.map((c) => [c.tool, c.memories, c.sessions, c.settings]),
+    [["claude-code", 1, 1, true]],
+  );
+  // Machine B pulls into a different path.
+  use(homeB);
+  const pulled = await pull(b, origin, repo, api, signal);
+  assert.equal(pulled.context[0].memoryWritten, 1);
+  assert.equal(pulled.context[0].sessionsWritten, 1);
+  assert.equal(pulled.context[0].config, "merged");
+  const dirB = path.join(homeB, ".claude", "projects", computeSlug(b));
+  assert.equal(
+    await readFile(path.join(dirB, "memory", "MEMORY.md"), "utf8"),
+    "- plan\n",
+  );
+  assert.equal(
+    JSON.parse(await readFile(path.join(dirB, "s1.jsonl"), "utf8")).cwd,
+    b,
+  );
+  const configB = JSON.parse(
+    await readFile(path.join(homeB, ".claude", ".claude.json"), "utf8"),
+  );
+  assert.equal(configB.projects[b].hasTrustDialogAccepted, true);
+  await assert.rejects(
+    readFile(
+      path.join(
+        b,
+        ".prjcontext",
+        "agents",
+        "claude-code",
+        "memory",
+        "MEMORY.md",
+      ),
+    ),
+  );
+  assert.equal(await readFile(path.join(b, "README.md"), "utf8"), "hello");
+  // B continues the session and pushes; A pulls the longer transcript.
+  await writeFile(
+    path.join(dirB, "s1.jsonl"),
+    line({ cwd: b, n: 1 }) + line({ cwd: b, n: 2 }),
+  );
+  await push(b, origin, repo, api, signal);
+  use(homeA);
+  await pull(a, origin, repo, api, signal);
+  const back = (await readFile(path.join(dirA, "s1.jsonl"), "utf8"))
+    .trim()
+    .split("\n")
+    .map((l) => JSON.parse(l));
+  assert.deepEqual(back, [
+    { cwd: a, n: 1 },
+    { cwd: a, n: 2 },
+  ]);
+  // --no-sessions leaves sessions out of the version; memory still travels.
+  await writeFile(path.join(a, "README.md"), "v3");
+  const quiet = await push(a, origin, repo, api, signal, { sessions: false });
+  assert.equal(quiet.context[0].sessions, 0);
+  const tip = (await api.request("GET", `/api/v1/repositories/${repo}/tip`))
+    .data.id;
+  const manifest = (
+    await api.request("GET", `/api/v1/repositories/${repo}/versions/${tip}`)
+  ).data.manifest;
+  assert.ok(
+    manifest.entries.some(
+      (e) =>
+        e.path === ".prjcontext/agents/claude-code/memory/MEMORY.md" &&
+        e.kind === "memory",
+    ),
+  );
+  assert.ok(!manifest.entries.some((e) => e.kind === "session"));
+  // Pulling a version without sessions never deletes local sessions.
+  use(homeB);
+  await pull(b, origin, repo, api, signal);
+  assert.ok(
+    (await readFile(path.join(dirB, "s1.jsonl"), "utf8")).includes('"n":2'),
+  );
+  assert.equal(
+    parsePushArguments(["--no-sessions", "-m", "x"]).options.sessions,
+    false,
+  );
+});

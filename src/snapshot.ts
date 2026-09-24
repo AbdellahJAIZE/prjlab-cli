@@ -12,6 +12,15 @@ import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import ignore from "ignore";
 import {
+  AGENTS_PREFIX,
+  isMirrorPath,
+  mirrorRoot,
+  refreshMirror,
+  applyContext,
+  type ContextSummary,
+  type ContextRestore,
+} from "./context-mirror.js";
+import {
   ProjectError,
   safePath,
   validateSnapshot,
@@ -213,6 +222,11 @@ export async function initialize(root: string) {
 function kind(name: string): Entry["kind"] {
   if (name.startsWith(".prjcontext/memory/")) return "memory";
   if (name.startsWith(".prjcontext/sessions/")) return "session";
+  const agent = /^\.prjcontext\/agents\/[a-z0-9-]+\/(memory|sessions)\//.exec(
+    name,
+  );
+  if (agent) return agent[1] === "memory" ? "memory" : "session";
+  if (name.startsWith(AGENTS_PREFIX)) return "instruction";
   if (
     name.startsWith(".prjcontext/instructions/") ||
     ["CLAUDE.md", "AGENTS.md"].includes(path.posix.basename(name))
@@ -228,6 +242,7 @@ async function rules(directoryPath: string, name: string) {
 async function scan(
   base: string,
   onFile?: (entry: Entry, data: Buffer) => Promise<void>,
+  meta?: string,
 ): Promise<Snapshot> {
   const defaults = ignore().add(DEFAULT_IGNORE),
     custom = await rules(base, ".prjignore");
@@ -246,6 +261,12 @@ async function scan(
     )) {
       const name = relative ? `${relative}/${item.name}` : item.name,
         probe = name + (item.isDirectory() ? "/" : "");
+      // .prjcontext/agents/ is reserved for tool context from the mirror.
+      if (
+        (probe + "/").startsWith(AGENTS_PREFIX) ||
+        probe.startsWith(AGENTS_PREFIX)
+      )
+        continue;
       if (
         defaults.ignores(probe) ||
         custom?.ignores(probe) ||
@@ -284,6 +305,45 @@ async function scan(
     }
   }
   await walk("", []);
+  if (meta) {
+    // Tool context captured into .prj/context/agents/… (see context-mirror.ts).
+    const mirror = mirrorRoot(meta);
+    async function walkMirror(relative: string) {
+      const full = path.join(mirror, relative);
+      if (!(await statOrMissing(full))) return;
+      await directory(full);
+      for (const item of (await readdir(full, { withFileTypes: true })).sort(
+        (a, b) => a.name.localeCompare(b.name),
+      )) {
+        const rel = relative ? `${relative}/${item.name}` : item.name;
+        const name = `.prjcontext/${rel}`;
+        const probe = name + (item.isDirectory() ? "/" : "");
+        if (item.isDirectory()) {
+          if (custom?.ignores(probe)) continue;
+          await walkMirror(rel);
+          continue;
+        }
+        if (!item.isFile() || custom?.ignores(probe) || !isMirrorPath(name))
+          continue;
+        safePath(name);
+        const data = await readSafe(path.join(mirror, rel), MAX_FILE);
+        total += data.length;
+        if (total > MAX_TOTAL || entries.length >= MAX_ENTRIES)
+          throw new ProjectError(
+            "Project exceeds development snapshot limits.",
+          );
+        const entry = {
+          path: name,
+          hash: digest(data),
+          size: data.length,
+          kind: kind(name),
+        };
+        entries.push(entry);
+        await onFile?.(entry, data);
+      }
+    }
+    await walkMirror("agents");
+  }
   return validateSnapshot({
     version: 1,
     entries: entries.sort((a, b) =>
@@ -300,17 +360,26 @@ async function store(meta: string, entry: Entry, data: Buffer) {
   }
   await atomic(file, data);
 }
-export async function capture(root: string) {
+export interface CaptureOptions {
+  /** false: leave AI-tool sessions out of this capture (prj push --no-sessions). */
+  sessions?: boolean;
+}
+export async function capture(root: string, options: CaptureOptions = {}) {
   const { base, meta } = await state(root);
   return locked(meta, async () => {
-    const snapshot = await scan(base, (entry, data) =>
-      store(meta, entry, data),
+    const context = await refreshMirror(meta, base, {
+      sessions: options.sessions !== false,
+    });
+    const snapshot = await scan(
+      base,
+      (entry, data) => store(meta, entry, data),
+      meta,
     );
     const json = JSON.stringify(snapshot),
       id = digest(Buffer.from(json));
     await atomic(path.join(meta, "snapshots", id + ".json"), json);
     await atomic(path.join(meta, "HEAD"), id + "\n");
-    return { id, ...snapshot };
+    return { id, ...snapshot, context };
   });
 }
 async function load(meta: string, id: string) {
@@ -332,7 +401,8 @@ export async function status(root: string) {
     const previous = head
       ? await load(meta, head)
       : { version: 1 as const, entries: [] };
-    const current = await scan(base);
+    const context = await refreshMirror(meta, base, { sessions: true });
+    const current = await scan(base, undefined, meta);
     const before = new Map(previous.entries.map((e) => [e.path, e.hash])),
       after = new Map(current.entries.map((e) => [e.path, e.hash]));
     return {
@@ -346,6 +416,7 @@ export async function status(root: string) {
       deleted: previous.entries
         .filter((e) => !after.has(e.path))
         .map((e) => e.path),
+      context,
     };
   });
 }
@@ -439,8 +510,20 @@ async function head(meta: string): Promise<string | null> {
     ? (await readSafe(file, 65)).toString("utf8").trim()
     : null;
 }
+/** Tool context lives in .prj/context/, everything else in the folder. */
+function locate(base: string, name: string): [string, string] {
+  return isMirrorPath(name)
+    ? [path.join(base, ".prj", "context"), name.slice(".prjcontext/".length)]
+    : [base, name];
+}
+function diskPath(base: string, name: string) {
+  const [root, rel] = locate(base, name);
+  return path.join(root, ...rel.split("/"));
+}
 async function current(base: string, name: string): Promise<Content | null> {
   safePath(name);
+  [base, name] = locate(base, name);
+  if (!(await statOrMissing(base))) return null;
   const parts = name.split("/");
   let cursor = base;
   for (const part of parts.slice(0, -1)) {
@@ -486,7 +569,12 @@ async function writeChange(
   name: string,
   content: Content | null,
 ) {
-  const parts = safePath(name).split("/");
+  safePath(name);
+  const mirror = isMirrorPath(name);
+  [base, name] = locate(base, name);
+  if (mirror && content) await mkdir(base, { recursive: true, mode: 0o700 });
+  if (mirror && !content && !(await statOrMissing(base))) return;
+  const parts = name.split("/");
   let cursor = base;
   if (content) {
     const data = await object(meta, content);
@@ -567,12 +655,14 @@ async function restoreLocked(
     if (same(previous, incoming)) continue;
     const local = await current(base, name);
     if (same(local, incoming)) continue;
-    if (!same(local, previous))
+    // Tool context in .prj/context is a cache of what the tools hold; the real
+    // three-way merge happens when it is applied to the tool (applyContext).
+    if (!same(local, previous) && !isMirrorPath(name))
       throw new ProjectError(
         "Restore conflicts with local edits or untracked files. Nothing was changed.",
       );
     if (local) {
-      const data = await readSafe(path.join(base, name), MAX_FILE);
+      const data = await readSafe(diskPath(base, name), MAX_FILE);
       await store(meta, { path: name, ...local, kind: "file" }, data);
     }
     changes.push({
@@ -695,7 +785,13 @@ export async function withSync<T>(
     removeLink: () => Promise<void>;
     readName: () => Promise<string | null>;
     writeName: (name: string | null) => Promise<void>;
-    capture: () => Promise<{ id: string; manifest: Snapshot }>;
+    capture: (
+      options?: CaptureOptions,
+    ) => Promise<{ id: string; manifest: Snapshot; context: ContextSummary[] }>;
+    applyContext: (
+      target: string,
+      baseline: string | null,
+    ) => Promise<ContextRestore[]>;
     manifest: (id: string) => Promise<Snapshot>;
     bytes: (entry: Entry) => Promise<Buffer>;
     stage: (
@@ -749,14 +845,30 @@ export async function withSync<T>(
           });
         else await atomic(file, name + "\n");
       },
-      capture: async () => {
-        const manifest = await scan(base, (entry, data) =>
-          store(meta, entry, data),
+      capture: async (options = {}) => {
+        const context = await refreshMirror(meta, base, {
+          sessions: options.sessions !== false,
+        });
+        const manifest = await scan(
+          base,
+          (entry, data) => store(meta, entry, data),
+          meta,
         );
         const json = JSON.stringify(manifest),
           id = digest(Buffer.from(json));
         await atomic(path.join(meta, "snapshots", id + ".json"), json);
-        return { id, manifest };
+        return { id, manifest, context };
+      },
+      applyContext: async (target, baseline) => {
+        const read = async (id: string | null) => {
+          const out = new Map<string, Buffer>();
+          if (!id) return out;
+          for (const entry of (await load(meta, id)).entries)
+            if (isMirrorPath(entry.path))
+              out.set(entry.path, await object(meta, entry));
+          return out;
+        };
+        return applyContext(base, await read(target), await read(baseline));
       },
       manifest: (id) => load(meta, id),
       bytes: (entry) => object(meta, entry),

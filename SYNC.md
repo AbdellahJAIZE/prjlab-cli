@@ -15,7 +15,12 @@ prj clone <handle>/<name> [<dir>]     # new directory, defaults to <name>
 prj pull                              # bring the directory up to the newest version
 prj remote set-url origin <handle>/<name>  # point at another repository
 prj remote remove origin              # forget the link; files and snapshots stay
+prj push --no-sessions                # this version without AI sessions
+prj context                           # what AI-tool context would travel
 ```
+
+Claude Code memory, sessions and project settings travel with every push and are
+restored for the new folder path on pull and clone; see README "AI-tool context".
 
 PrjLab keeps one remote, `origin`, and has no branches: `prj push origin main` and
 `prj push -u origin main` are accepted out of habit and upload a new version. A
