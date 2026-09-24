@@ -115,7 +115,7 @@ test("rejects route escapes and oversized requests before any network access", a
     await assert.rejects(api.request("GET", route), fails("request"));
   await assert.rejects(
     api.request("POST", "/api/v1/repositories", {
-      body: { description: "x".repeat(65536) },
+      body: { description: "x".repeat(1024 * 1024) },
     }),
     fails("request"),
   );

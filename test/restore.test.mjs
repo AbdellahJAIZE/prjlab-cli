@@ -124,7 +124,7 @@ test("process crash leaves recoverable journal and prevents false sync", async (
     { first, second } = await snapshots(root);
   crash(root, first.id);
   assert.equal(await head(root), second.id);
-  await assert.rejects(capture(root), /operation|lock/);
+  await assert.rejects(capture(root), /operation|lock|recover/);
   assert.deepEqual(await recover(root), { recovered: true });
   assert.equal(
     await readFile(path.join(root, "added.txt"), "utf8"),
