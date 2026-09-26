@@ -227,6 +227,10 @@ export class LoginSession {
   async whoami(signal: AbortSignal): Promise<AccountResult> {
     return (await this.refresh(signal)).account;
   }
+  /** A fresh access token (git's credential helper). */
+  async accessToken(signal: AbortSignal): Promise<string> {
+    return (await this.refresh(signal)).token;
+  }
   async transport(signal: AbortSignal): Promise<ApiTransport> {
     const result = await this.refresh(signal);
     return new ApiTransport(

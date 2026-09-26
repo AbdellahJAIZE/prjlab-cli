@@ -559,3 +559,62 @@ test("two machines: Claude memory, sessions and settings travel with push and la
     false,
   );
 });
+
+test("git folders: context-only push carries only AI context, context-only pull never touches files", async (t) => {
+  const { mkdir } = await import("node:fs/promises");
+  const { computeSlug } = await import("../dist/claude-context.js");
+  const saved = {
+    HOME: process.env.HOME,
+    CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR,
+  };
+  t.after(() => {
+    for (const [k, v] of Object.entries(saved))
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+  });
+  const home = await mkdtemp(path.join(tmpdir(), "prj-home-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  process.env.HOME = home;
+  process.env.CLAUDE_CONFIG_DIR = path.join(home, ".claude");
+  const a = await realpath(await workspace(t)),
+    b = await realpath(await workspace(t)),
+    api = server();
+  // A: a legacy full version (files) first, like a repository pushed with prj 0.x.
+  await writeFile(path.join(a, "note.txt"), "legacy file");
+  await push(a, origin, repo, api, signal);
+  // A then works in git mode: Claude memory appears, context-only push.
+  const dirA = path.join(home, ".claude", "projects", computeSlug(a));
+  await mkdir(path.join(dirA, "memory"), { recursive: true });
+  await writeFile(path.join(dirA, "memory", "MEMORY.md"), "- decision\n");
+  const pushed = await push(a, origin, repo, api, signal, {
+    contextOnly: true,
+  });
+  assert.equal(pushed.upToDate, false);
+  const tip = (await api.request("GET", `/api/v1/repositories/${repo}/tip`))
+    .data.id;
+  const manifest = (
+    await api.request("GET", `/api/v1/repositories/${repo}/versions/${tip}`)
+  ).data.manifest;
+  assert.ok(manifest.entries.length > 0);
+  assert.ok(
+    manifest.entries.every((e) => e.path.startsWith(".prjcontext/agents/")),
+    "no files in a context version",
+  );
+  // B: its own files; a context-only pull restores memory but never adds or deletes files.
+  await writeFile(path.join(b, "mine.txt"), "keep");
+  const pulled = await pull(b, origin, repo, api, signal, {
+    contextOnly: true,
+  });
+  assert.equal(pulled.context[0].memoryWritten, 1);
+  await assert.rejects(
+    readFile(path.join(b, "note.txt")),
+    "legacy files are not restored",
+  );
+  assert.equal(await readFile(path.join(b, "mine.txt"), "utf8"), "keep");
+  assert.equal(await readFile(path.join(a, "note.txt"), "utf8"), "legacy file");
+  // Nothing changed: context push is up to date, no empty version.
+  assert.equal(
+    (await push(a, origin, repo, api, signal, { contextOnly: true })).upToDate,
+    true,
+  );
+});

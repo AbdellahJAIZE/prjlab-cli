@@ -4,30 +4,32 @@ const HELP = `prj ${VERSION} — push, pull and clone your projects with their c
 Usage: prj <command> [arguments]
 
 Account
-  login                              Sign in through your browser (https://prjlab.com)
+  login                              Sign in through your browser; git then signs
+                                     in to PrjLab by itself (no password)
   whoami                             Show the signed-in handle
   logout                             Remove the saved credentials on this machine
 
-Sync (needs login; create repositories at https://prjlab.com/new)
+Git repositories (code travels with git, AI context with prj)
+  clone <handle>/<name> [<dir>]      git clone + prj init
+  init                               In a git repository: link it, keep .prj out
+                                     of git, install hooks so Claude Code memory
+                                     and sessions travel with git push/pull/switch
+  context                            Show the AI-tool context found for this folder
+  context push|pull [--quiet]        Move the context by hand (the hooks do this)
+  Like GitHub: git clone https://prjlab.com/<handle>/<name>.git, then prj init.
+
+Folders without git (versions)
   remote add origin <handle>/<name>  Link this directory to a repository
-  remote -v                          Show the linked repository
-  remote set-url origin <handle>/<name>
-  remote remove origin               Forget the link (files stay)
+  remote -v | set-url | remove       Show or change the link
   push [origin] [-m "…"] [--no-sessions]
                                      Upload this directory and its AI context
-                                     (Claude Code memory, sessions, settings)
   pull [origin]                      Bring this directory up to the latest version
-  clone <handle>/<name> [<dir>]      Copy a repository into a new directory
-  Like git: push and pull use origin; "prj push origin main" and
-  "prj push -u origin main" work too (PrjLab has no branches). A repository
-  ID or its https://prjlab.com/<handle>/<name> link works in place of
-  <handle>/<name>, and prj push <handle>/<name> links on the first push.
-  -m / --message describes the version (up to 200 characters).
+  A repository ID or its https://prjlab.com/<handle>/<name> link works in
+  place of <handle>/<name>.
 
 Local (offline)
   init                               Prepare this directory (creates .prj/)
   status                             Show what changed since the last snapshot
-  context                            Show the AI-tool context found for this folder
   snapshot                           Record a local snapshot
   export <snapshot-id> <new-dir>     Write a snapshot into a new directory
   restore <snapshot-id>              Return tracked files to a snapshot
