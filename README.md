@@ -37,34 +37,33 @@ install script or compiler is needed.
 
 ## Quick start
 
-1. Create an account at [prjlab.com](https://prjlab.com/sign-in) and pick a handle.
-2. Create a repository at [prjlab.com/new](https://prjlab.com/new).
-3. In your project directory:
+PrjLab repositories are **real git repositories**: use git exactly as with GitHub.
+`prj` signs git in and carries what git cannot see, the AI context.
 
 ```sh
-prj login                                 # opens your browser once
-prj init                                  # creates .prj/ (add it to .gitignore)
-prj remote add origin you/your-repo       # link this directory, like git
-prj push -m "First version"               # upload this directory as version 1
-prj push -m "what changed"                # later: describe the version (up to 200 characters)
-```
+npm install -g prjlab-cli
+prj login                                   # browser sign-in; git then signs in too
 
-4. On another machine, or for a friend you invited:
+# an existing repository
+git remote add origin https://prjlab.com/you/your-repo.git
+git push -u origin main
+prj init                                    # once: context travels with git from now on
 
-```sh
-prj clone you/your-repo         # into ./your-repo
+# another machine
+prj clone you/your-repo                     # git clone + prj init (context restored)
 cd your-repo
-prj pull                        # later: fetch the newest version
-prj push                        # the directory remembers its repository
+git switch -c idea && git commit -am "Idea" && git push -u origin idea
+git pull                                    # code and Claude context
 ```
 
-Git habits carry over: `prj remote -v` shows the link, `prj push origin main` and
-`prj push -u origin main` work (PrjLab has no branches, every push is a new
-version), and the repository page link (`https://prjlab.com/you/your-repo`) works
-wherever `you/your-repo` does.
+`prj init` installs three git hooks (pre-push, post-merge, post-checkout; your own
+hooks are kept and still run first) and keeps `.prj/` out of git through
+`.git/info/exclude`. `prj context` shows what travels; `prj context push|pull`
+runs it by hand. IDEs and CI can use a personal access token from PrjLab
+Settings as the git password instead of `prj login`.
 
-Run `prj --help` for the full command list. The guide with screenshots is at
-[prjlab.com/docs](https://prjlab.com/docs).
+Folders without git still work with `prj remote add origin you/your-repo`,
+`prj push` and `prj pull` (versions), as before.
 
 ## What travels
 
