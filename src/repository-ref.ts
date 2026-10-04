@@ -89,7 +89,7 @@ export async function linkedRepository(
     raw = await readFile(file, "utf8");
   } catch {
     throw new ProjectError(
-      "This folder has no remote yet. Run prj remote add origin <handle>/<name> (create the repository at https://prjlab.com/new first), then prj push.",
+      "This folder has no remote yet. Run prj create to make a repository for it, or prj remote add origin <handle>/<name> to link an existing one, then prj push.",
     );
   }
   let link: { origin?: unknown; repository?: unknown };

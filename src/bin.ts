@@ -31,7 +31,7 @@ const withGit = ["init", "clone", "context", "push", "pull"].includes(
 const sync =
   !auth &&
   !withGit &&
-  ["push", "pull", "clone", "remote"].includes(args[0] ?? "")
+  ["push", "pull", "clone", "remote", "create"].includes(args[0] ?? "")
     ? await (await import("./sync-commands.js")).syncCommands(args)
     : undefined;
 const result = auth ?? withGit ?? sync ?? (await local(args)) ?? run(args);

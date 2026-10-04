@@ -89,7 +89,7 @@ test("rejects insecure servers, URL credentials and mismatched credential scopes
     { timeoutMs: 0 },
     { timeoutMs: 30001 },
     { maxResponseBytes: 0 },
-    { maxResponseBytes: 1048577 },
+    { maxResponseBytes: 4 * 1024 * 1024 + 1 },
   ])
     assert.throws(
       () => client("http://127.0.0.1", options),
@@ -115,7 +115,7 @@ test("rejects route escapes and oversized requests before any network access", a
     await assert.rejects(api.request("GET", route), fails("request"));
   await assert.rejects(
     api.request("POST", "/api/v1/repositories", {
-      body: { description: "x".repeat(1024 * 1024) },
+      body: { description: "x".repeat(4 * 1024 * 1024) },
     }),
     fails("request"),
   );
@@ -153,7 +153,7 @@ for (const [status, code] of [
   [403, "permission"],
   [404, "not_found"],
   [409, "conflict"],
-  [413, "http"],
+  [413, "too_large"],
   [429, "rate_limited"],
   [500, "service"],
   [503, "service"],
@@ -322,7 +322,7 @@ test("binary downloads reject corruption, wrong content type and oversized decom
       );
       if (scenario === "large") {
         res.setHeader("Content-Encoding", "gzip");
-        res.end(gzipSync(Buffer.alloc(5 * 1024 * 1024 + 1)));
+        res.end(gzipSync(Buffer.alloc(25 * 1024 * 1024 + 1)));
       } else
         res.end(scenario === "empty" ? Buffer.alloc(0) : Buffer.from("bad"));
     });

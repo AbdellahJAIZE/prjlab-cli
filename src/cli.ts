@@ -19,6 +19,9 @@ Git repositories (code travels with git, AI context with prj)
   Like GitHub: git clone https://prjlab.com/<handle>/<name>.git, then prj init.
 
 Folders without git (versions)
+  create [<name>] [-d "…"] [--no-link]
+                                     Create a private repository (named after this
+                                     directory by default) and link the directory
   remote add origin <handle>/<name>  Link this directory to a repository
   remote -v | set-url | remove       Show or change the link
   push [origin] [-m "…"] [--no-sessions]

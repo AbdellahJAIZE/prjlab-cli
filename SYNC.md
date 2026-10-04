@@ -1,6 +1,7 @@
 # Sync: push, pull and clone
 
-Sign in with `prj login` and create a repository at https://prjlab.com/new. Name it
+Sign in with `prj login` and create a repository with `prj create` (or at
+https://prjlab.com/new). Name it
 as `<handle>/<name>` (the owner's handle and the repository name); a repository ID
 from the web app works too.
 
@@ -71,12 +72,13 @@ resume the same saved snapshot. Sessions expire after 24 hours without renewal.
 ## Transport and limits
 
 Transfers use bearer credentials for the configured origin, reject redirects,
-validate SHA-256 and limit each request to 10 seconds. A sync command has a
-5-minute deadline. Token refresh happens before the command; an expired token
+validate SHA-256 and limit a small request to 10 seconds; a large object gets time
+in proportion to its size (one more second per 64 KiB). A sync command has a
+30-minute deadline. Token refresh happens before the command; an expired token
 during transfer fails with saved retry state. There is no background sync,
 automatic retry or credential logging.
 
-Limits: 5 MiB per file, 100 MiB per snapshot, 1,000 entries; the normalized
-remote manifest must fit in 512 KiB within a 1 MiB request. Repository object and
+Limits: 25 MiB per file, 500 MiB per snapshot, 5,000 entries; the normalized
+remote manifest must fit in 2,560 KiB within a 4 MiB request. Repository object and
 version quotas also apply, and history keeps every pushed object, so a repository
 can fill with historical content.

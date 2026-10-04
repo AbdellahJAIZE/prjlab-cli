@@ -38,6 +38,10 @@ export {
   type Entry,
   type Snapshot,
 } from "./manifest.js";
+// A snapshot of MAX_ENTRIES entries with 240-character paths is about 1.8 MiB;
+// a restore journal lists up to twice as many paths.
+const SNAPSHOT_FILE_BYTES = 4 * 1024 * 1024,
+  JOURNAL_FILE_BYTES = 8 * 1024 * 1024;
 const DEFAULT_IGNORE = [
   ".git",
   ".git/",
@@ -99,16 +103,19 @@ async function readSafe(file: string, max: number): Promise<Buffer> {
       opened.size > max
     )
       throw new ProjectError("File changed while being read.");
-    const data = Buffer.alloc(max + 1);
+    // One spare byte reveals a file that grew while it was being read.
+    const capacity = Math.min(max, opened.size) + 1;
+    const data = Buffer.alloc(capacity);
     let count = 0;
-    while (count <= max) {
-      const { bytesRead } = await fd.read(data, count, max + 1 - count, null);
+    while (count < capacity) {
+      const { bytesRead } = await fd.read(data, count, capacity - count, null);
       if (!bytesRead) break;
       count += bytesRead;
     }
     const after = await fd.stat();
     if (
       count > max ||
+      count !== stat.size ||
       after.size !== stat.size ||
       after.mtimeMs !== stat.mtimeMs
     )
@@ -239,18 +246,46 @@ async function rules(directoryPath: string, name: string) {
   if (!(await statOrMissing(file))) return undefined;
   return ignore().add((await readSafe(file, 65536)).toString("utf8"));
 }
-async function scan(
+/**
+ * The root .prjignore, as two matchers. Folder files obey every rule. Tool
+ * context (memory, sessions) obeys only the rules that name .prjcontext: a
+ * broad rule such as `*` or `/*` is about the folder, and must not silently
+ * drop the context the user expects to travel.
+ */
+async function customRules(base: string) {
+  const file = path.join(base, ".prjignore");
+  if (!(await statOrMissing(file))) return {};
+  const text = (await readSafe(file, 65536)).toString("utf8");
+  const named = text
+    .split(/\r?\n/)
+    .filter((l) => !l.trimStart().startsWith("#") && l.includes(".prjcontext"));
+  return {
+    files: ignore().add(text),
+    context: named.length ? ignore().add(named.join("\n")) : undefined,
+  };
+}
+type Matcher = ReturnType<typeof ignore>;
+type Rule = { prefix: string; matcher: Matcher };
+/** Folder paths that pass the default, .prjignore and .gitignore rules. */
+async function* included(
   base: string,
-  onFile?: (entry: Entry, data: Buffer) => Promise<void>,
-  meta?: string,
-  contextOnly = false,
-): Promise<Snapshot> {
-  const defaults = ignore().add(DEFAULT_IGNORE),
-    custom = await rules(base, ".prjignore");
-  const entries: Entry[] = [];
-  let total = 0;
-  type Rule = { prefix: string; matcher: ReturnType<typeof ignore> };
-  async function walk(relative: string, inherited: Rule[]) {
+  custom: Matcher | undefined,
+): AsyncGenerator<{
+  name: string;
+  size: number;
+  link: boolean;
+  regular: boolean;
+}> {
+  const defaults = ignore().add(DEFAULT_IGNORE);
+  async function* walk(
+    relative: string,
+    inherited: Rule[],
+  ): AsyncGenerator<{
+    name: string;
+    size: number;
+    link: boolean;
+    regular: boolean;
+  }> {
     const full = path.join(base, relative);
     await directory(full);
     const own = await rules(full, ".gitignore"),
@@ -281,70 +316,219 @@ async function scan(
         continue;
       safePath(name);
       const stat = await lstat(path.join(base, name));
-      if (stat.isSymbolicLink())
-        throw new ProjectError(
-          "Capture refuses symbolic links. Exclude them explicitly.",
-        );
-      if (stat.isDirectory()) {
-        await walk(name, all);
+      if (stat.isDirectory() && !stat.isSymbolicLink()) {
+        yield* walk(name, all);
         continue;
       }
-      if (!stat.isFile())
-        throw new ProjectError("Capture supports regular files only.");
-      const data = await readSafe(path.join(base, name), MAX_FILE);
-      total += data.length;
-      if (total > MAX_TOTAL || entries.length >= MAX_ENTRIES)
-        throw new ProjectError("Project exceeds development snapshot limits.");
-      const entry = {
-        path: name,
-        hash: digest(data),
-        size: data.length,
-        kind: kind(name),
+      yield {
+        name,
+        size: stat.size,
+        link: stat.isSymbolicLink(),
+        regular: stat.isFile(),
       };
-      entries.push(entry);
-      await onFile?.(entry, data);
     }
   }
-  if (!contextOnly) await walk("", []);
-  if (meta) {
-    // Tool context captured into .prj/context/agents/… (see context-mirror.ts).
-    const mirror = mirrorRoot(meta);
-    async function walkMirror(relative: string) {
-      const full = path.join(mirror, relative);
-      if (!(await statOrMissing(full))) return;
-      await directory(full);
-      for (const item of (await readdir(full, { withFileTypes: true })).sort(
-        (a, b) => a.name.localeCompare(b.name),
-      )) {
-        const rel = relative ? `${relative}/${item.name}` : item.name;
-        const name = `.prjcontext/${rel}`;
-        const probe = name + (item.isDirectory() ? "/" : "");
-        if (item.isDirectory()) {
-          if (custom?.ignores(probe)) continue;
-          await walkMirror(rel);
-          continue;
-        }
-        if (!item.isFile() || custom?.ignores(probe) || !isMirrorPath(name))
-          continue;
-        safePath(name);
-        const data = await readSafe(path.join(mirror, rel), MAX_FILE);
-        total += data.length;
-        if (total > MAX_TOTAL || entries.length >= MAX_ENTRIES)
-          throw new ProjectError(
-            "Project exceeds development snapshot limits.",
-          );
-        const entry = {
-          path: name,
-          hash: digest(data),
-          size: data.length,
-          kind: kind(name),
-        };
-        entries.push(entry);
-        await onFile?.(entry, data);
+  yield* walk("", []);
+}
+/** Tool context in .prj/context that passes the .prjcontext rules of .prjignore. */
+async function* mirrored(
+  meta: string,
+  custom: Matcher | undefined,
+): AsyncGenerator<{ name: string; file: string; size: number }> {
+  // Tool context captured into .prj/context/agents/… (see context-mirror.ts).
+  const mirror = mirrorRoot(meta);
+  async function* walk(
+    relative: string,
+  ): AsyncGenerator<{ name: string; file: string; size: number }> {
+    const full = path.join(mirror, relative);
+    if (!(await statOrMissing(full))) return;
+    await directory(full);
+    for (const item of (await readdir(full, { withFileTypes: true })).sort(
+      (a, b) => a.name.localeCompare(b.name),
+    )) {
+      const rel = relative ? `${relative}/${item.name}` : item.name;
+      const name = `.prjcontext/${rel}`;
+      const probe = name + (item.isDirectory() ? "/" : "");
+      if (item.isDirectory()) {
+        if (custom?.ignores(probe)) continue;
+        yield* walk(rel);
+        continue;
       }
+      if (!item.isFile() || custom?.ignores(probe) || !isMirrorPath(name))
+        continue;
+      safePath(name);
+      const file = path.join(mirror, rel);
+      yield { name, file, size: (await lstat(file)).size };
     }
-    await walkMirror("agents");
   }
+  yield* walk("agents");
+}
+/** What a capture of this folder would carry, measured without reading files. */
+export interface Usage {
+  /** Folder files that pass the ignore rules, and their bytes. */
+  files: number;
+  bytes: number;
+  /** Tool context (memory, sessions, settings) entries and bytes. */
+  contextEntries: number;
+  contextBytes: number;
+  sessions: number;
+  /** Folder files above the per-file limit, largest first. */
+  oversize: { path: string; size: number }[];
+  /** Symbolic links, which a capture refuses. */
+  links: string[];
+  /** Top-level entries and the directories one level below them, largest first. */
+  groups: { path: string; directory: boolean; files: number; bytes: number }[];
+}
+export function overLimits(usage: Usage) {
+  return (
+    usage.files + usage.contextEntries > MAX_ENTRIES ||
+    usage.bytes + usage.contextBytes > MAX_TOTAL ||
+    usage.oversize.length > 0 ||
+    usage.links.length > 0
+  );
+}
+const mib = (bytes: number) =>
+  bytes >= 10 * 1024 * 1024
+    ? `${Math.round(bytes / (1024 * 1024)).toLocaleString("en-US")} MiB`
+    : `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+const count = (n: number) => n.toLocaleString("en-US");
+/** Plain-language account of which limit a folder exceeds, and by how much. */
+export function describeUsage(usage: Usage): string[] {
+  const entries = usage.files + usage.contextEntries,
+    total = usage.bytes + usage.contextBytes;
+  const lines = [
+    "This folder is over PrjLab's limits, so nothing was uploaded:",
+    `  entries    ${count(entries)} of ${count(MAX_ENTRIES)}${entries > MAX_ENTRIES ? "  (over)" : ""}  — ${count(usage.files)} files + ${count(usage.contextEntries)} context`,
+    `  size       ${mib(total)} of ${mib(MAX_TOTAL)}${total > MAX_TOTAL ? "  (over)" : ""}  — ${mib(usage.bytes)} files + ${mib(usage.contextBytes)} context`,
+  ];
+  if (usage.oversize.length)
+    lines.push(
+      `  too large  ${count(usage.oversize.length)} file${usage.oversize.length === 1 ? "" : "s"} over ${mib(MAX_FILE)} each, largest ${usage.oversize[0]!.path} (${mib(usage.oversize[0]!.size)})`,
+    );
+  if (usage.links.length)
+    lines.push(
+      `  links      ${count(usage.links.length)} symbolic link${usage.links.length === 1 ? "" : "s"} (not supported), first ${usage.links[0]}`,
+    );
+  if (usage.groups.length) {
+    lines.push("Largest parts of the folder:");
+    for (const g of usage.groups.slice(0, 8))
+      lines.push(
+        `  ${count(g.files).padStart(7)} file${g.files === 1 ? " " : "s"}  ${mib(g.bytes).padStart(10)}  ${g.path}${g.directory ? "/" : ""}`,
+      );
+  }
+  if (
+    usage.contextEntries > MAX_ENTRIES ||
+    usage.contextBytes > MAX_TOTAL ||
+    (!usage.files && !usage.oversize.length && !usage.links.length)
+  )
+    lines.push(
+      `The AI context alone is over the limits (${count(usage.sessions)} session${usage.sessions === 1 ? "" : "s"}). prj push --no-sessions uploads memory and settings without sessions.`,
+    );
+  lines.push(
+    "Leave parts out with a .prjignore file (same syntax as .gitignore), or run prj push in a terminal to choose what stays out.",
+  );
+  return lines;
+}
+/** A capture that cannot fit the limits; carries the measurements for the caller. */
+export class LimitError extends ProjectError {
+  constructor(readonly usage: Usage) {
+    super(describeUsage(usage).join("\n"));
+  }
+}
+async function survey(
+  base: string,
+  meta: string,
+  contextOnly = false,
+): Promise<Usage> {
+  const custom = await customRules(base);
+  const usage: Usage = {
+    files: 0,
+    bytes: 0,
+    contextEntries: 0,
+    contextBytes: 0,
+    sessions: 0,
+    oversize: [],
+    links: [],
+    groups: [],
+  };
+  const groups = new Map<string, Usage["groups"][number]>();
+  // In a git folder git carries the files: only the context is measured.
+  for await (const item of contextOnly ? [] : included(base, custom.files)) {
+    if (item.link) {
+      usage.links.push(item.name);
+      continue;
+    }
+    if (!item.regular) continue;
+    usage.files++;
+    usage.bytes += item.size;
+    if (item.size > MAX_FILE)
+      usage.oversize.push({ path: item.name, size: item.size });
+    // Each file counts towards its top-level entry and, when it sits deeper,
+    // towards the directory one level down, so both "JOBS/" and "JOBS/_scan/"
+    // can be named.
+    const segments = item.name.split("/");
+    const keys = [segments[0]!];
+    if (segments.length > 2) keys.push(segments.slice(0, 2).join("/"));
+    for (const [depth, key] of keys.entries()) {
+      const group = groups.get(key) ?? {
+        path: key,
+        directory: depth === 1 || segments.length > 1,
+        files: 0,
+        bytes: 0,
+      };
+      group.files++;
+      group.bytes += item.size;
+      groups.set(key, group);
+    }
+  }
+  const sessions = new Set<string>();
+  for await (const item of mirrored(meta, custom.context)) {
+    usage.contextEntries++;
+    usage.contextBytes += item.size;
+    const session =
+      /^\.prjcontext\/agents\/[a-z0-9-]+\/sessions\/([^/]+)\//.exec(item.name);
+    if (session) sessions.add(session[1]!);
+  }
+  usage.sessions = sessions.size;
+  usage.oversize.sort((a, b) => b.size - a.size);
+  usage.groups = [...groups.values()].sort((a, b) => b.bytes - a.bytes);
+  return usage;
+}
+async function scan(
+  base: string,
+  onFile?: (entry: Entry, data: Buffer) => Promise<void>,
+  meta?: string,
+  contextOnly = false,
+): Promise<Snapshot> {
+  const custom = await customRules(base);
+  const entries: Entry[] = [];
+  let total = 0;
+  const add = async (name: string, file: string) => {
+    const data = await readSafe(file, MAX_FILE);
+    total += data.length;
+    if (total > MAX_TOTAL || entries.length >= MAX_ENTRIES)
+      throw new ProjectError("Project exceeds development snapshot limits.");
+    const entry = {
+      path: name,
+      hash: digest(data),
+      size: data.length,
+      kind: kind(name),
+    };
+    entries.push(entry);
+    await onFile?.(entry, data);
+  };
+  for await (const item of contextOnly ? [] : included(base, custom.files)) {
+    if (item.link)
+      throw new ProjectError(
+        "Capture refuses symbolic links. Exclude them explicitly.",
+      );
+    if (!item.regular)
+      throw new ProjectError("Capture supports regular files only.");
+    await add(item.name, path.join(base, item.name));
+  }
+  if (meta)
+    for await (const item of mirrored(meta, custom.context))
+      await add(item.name, item.file);
   return validateSnapshot({
     version: 1,
     entries: entries.sort((a, b) =>
@@ -361,6 +545,19 @@ async function store(meta: string, entry: Entry, data: Buffer) {
   }
   await atomic(file, data);
 }
+/** Refuse an over-limit folder up front, saying which limit and what is largest. */
+async function withinLimits(base: string, meta: string, contextOnly = false) {
+  const usage = await survey(base, meta, contextOnly);
+  if (overLimits(usage)) throw new LimitError(usage);
+}
+/** Read-only measurement of what a push of this folder would carry. */
+export async function measure(root: string, options: CaptureOptions = {}) {
+  const { base, meta } = await state(root);
+  return locked(meta, async () => {
+    await refreshMirror(meta, base, { sessions: options.sessions !== false });
+    return survey(base, meta);
+  });
+}
 export interface CaptureOptions {
   /** false: leave AI-tool sessions out of this capture (prj push --no-sessions). */
   sessions?: boolean;
@@ -373,6 +570,7 @@ export async function capture(root: string, options: CaptureOptions = {}) {
     const context = await refreshMirror(meta, base, {
       sessions: options.sessions !== false,
     });
+    await withinLimits(base, meta);
     const snapshot = await scan(
       base,
       (entry, data) => store(meta, entry, data),
@@ -389,7 +587,7 @@ async function load(meta: string, id: string) {
   if (!HASH.test(id)) throw new ProjectError("Invalid snapshot ID.");
   const bytes = await readSafe(
     path.join(meta, "snapshots", id + ".json"),
-    1024 * 1024,
+    SNAPSHOT_FILE_BYTES,
   );
   if (digest(bytes) !== id)
     throw new ProjectError("Snapshot integrity check failed.");
@@ -405,6 +603,7 @@ export async function status(root: string) {
       ? await load(meta, head)
       : { version: 1 as const, entries: [] };
     const context = await refreshMirror(meta, base, { sessions: true });
+    await withinLimits(base, meta);
     const current = await scan(base, undefined, meta);
     const before = new Map(previous.entries.map((e) => [e.path, e.hash])),
       after = new Map(current.entries.map((e) => [e.path, e.hash]));
@@ -770,7 +969,7 @@ export async function recover(root: string) {
       const file = path.join(meta, "restore.json");
       if (!(await statOrMissing(file))) return { recovered: false };
       const journal = validateJournal(
-        JSON.parse((await readSafe(file, 1024 * 1024)).toString("utf8")),
+        JSON.parse((await readSafe(file, JOURNAL_FILE_BYTES)).toString("utf8")),
       );
       const active = await head(meta);
       if (active === journal.target) {
@@ -862,6 +1061,7 @@ export async function withSync<T>(
         const context = await refreshMirror(meta, base, {
           sessions: options.sessions !== false,
         });
+        await withinLimits(base, meta, options.contextOnly === true);
         const manifest = await scan(
           base,
           (entry, data) => store(meta, entry, data),

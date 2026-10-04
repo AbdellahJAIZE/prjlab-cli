@@ -139,7 +139,7 @@ test("push and pull reuse the linked repository of the directory", async (t) => 
   t.after(() => rm(root, { recursive: true, force: true }));
   await assert.rejects(
     linkedRepository(root, "https://prjlab.com"),
-    /no remote yet\. Run prj remote add origin/,
+    /no remote yet\. Run prj create/,
   );
   await mkdir(path.join(root, ".prj"));
   const file = path.join(root, ".prj", "remote.json");

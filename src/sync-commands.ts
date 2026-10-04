@@ -5,7 +5,10 @@ import {
   withCredentialLock,
 } from "./credential-store.js";
 import { LoginSession } from "./login-session.js";
-import { ProjectError } from "./snapshot.js";
+import { ProjectError, LimitError } from "./snapshot.js";
+import { ask, leaveOut } from "./review.js";
+import { create, describeCreated, parseCreateArguments } from "./create.js";
+import { gitFolder } from "./git-integration.js";
 import { TransportError } from "./http.js";
 import path from "node:path";
 import type { Changes, SyncChanges } from "./sync.js";
@@ -126,7 +129,7 @@ async function remoteCommand(args: readonly string[], signal: AbortSignal) {
     );
     if (checked.status === 404 || checked.status === 403)
       throw new ProjectError(
-        "That repository was not found or you do not have access. Create it at https://prjlab.com/new first.",
+        "That repository was not found or you do not have access. Create it with prj create <name>, or at https://prjlab.com/new.",
       );
     if (checked.status !== 200) throw new TransportError("response");
     const outcome = await addRemote(
@@ -173,6 +176,11 @@ interface SyncResult {
   contextError?: string;
   message?: string;
 }
+/** A whole 500 MiB repository must be able to finish; each request still has its own timeout. */
+const SYNC_TIME_LIMIT = 30 * 60 * 1000;
+/** Context that was found but did not travel must be said, never implied. */
+const contextWarnings = (summary: ContextSummary[]) =>
+  summary.flatMap((s) => s.warnings.map((w) => ` warning: ${w}`));
 /** git-like output: where, which versions, what changed, what context travelled. */
 export function formatSync(
   command: "push" | "pull" | "clone",
@@ -188,6 +196,7 @@ export function formatSync(
         ...describeSummary(result.context as ContextSummary[]).map(
           (l) => ` Context: ${l}`,
         ),
+        ...contextWarnings(result.context as ContextSummary[]),
       );
     return lines;
   }
@@ -229,6 +238,7 @@ export function formatSync(
               ? ` (${updated} file${updated === 1 ? "" : "s"} updated)`
               : ""),
         ),
+        ...contextWarnings(result.context as ContextSummary[]),
       );
     } else
       lines.push(
@@ -242,11 +252,37 @@ export function formatSync(
 }
 export async function syncCommands(args: readonly string[]) {
   const command = args[0];
-  if (!["push", "pull", "clone", "remote"].includes(command ?? ""))
+  if (!["push", "pull", "clone", "remote", "create"].includes(command ?? ""))
     return undefined;
   const controller = new AbortController(),
     cancel = () => controller.abort();
-  const timer = setTimeout(cancel, 5 * 60 * 1000);
+  let timer = setTimeout(cancel, SYNC_TIME_LIMIT);
+  /**
+   * An over-limit folder is not a dead end on a terminal: show what is large,
+   * let the person choose what stays out (written to .prjignore), try again.
+   * Without a terminal the explanation is the error, and nothing is guessed.
+   */
+  const pushWithinLimits = async <T>(attempt: () => Promise<T>): Promise<T> => {
+    for (let round = 0; ; round++) {
+      try {
+        return await attempt();
+      } catch (error) {
+        if (
+          !(error instanceof LimitError) ||
+          !process.stdin.isTTY ||
+          !process.stderr.isTTY ||
+          round >= 20
+        )
+          throw error;
+        // Time spent deciding must not count against the transfer.
+        clearTimeout(timer);
+        const picked = await ask(error.usage);
+        timer = setTimeout(cancel, SYNC_TIME_LIMIT);
+        if (!picked.length || !(await leaveOut(process.cwd(), picked)))
+          throw error;
+      }
+    }
+  };
   process.once("SIGINT", cancel);
   process.once("SIGTERM", cancel);
   try {
@@ -256,6 +292,31 @@ export async function syncCommands(args: readonly string[]) {
         stdout: await remoteCommand(args.slice(1), controller.signal),
         stderr: "",
       };
+    if (command === "create") {
+      const wanted = parseCreateArguments(args.slice(1));
+      const { config, api } = await signedIn(controller.signal);
+      // In a git folder git carries the files: create the repository only and
+      // say how to point git at it; prj init then makes the context follow.
+      const inGit =
+        wanted.link !== false && (await gitFolder(process.cwd())) !== null;
+      const made = await create(
+        process.cwd(),
+        config.origin,
+        api,
+        controller.signal,
+        inGit ? { ...wanted, link: false } : wanted,
+      );
+      const lines = inGit
+        ? [
+            `Created ${config.origin}/${made.name} (${made.visibility}).`,
+            "This folder is a git repository. Point git at it; the context follows:",
+            `  git remote add origin ${config.origin}/${made.name}.git`,
+            "  git push -u origin HEAD",
+            "  prj init",
+          ]
+        : describeCreated(config.origin, made);
+      return { code: 0, stdout: lines.join("\n") + "\n", stderr: "" };
+    }
     const parsed =
       command === "push"
         ? parsePushArguments(args.slice(1))
@@ -288,13 +349,15 @@ export async function syncCommands(args: readonly string[]) {
       linked ?? (await resolveRepository(ref!, api, controller.signal));
     const result =
       command === "push"
-        ? await push(
-            process.cwd(),
-            config.origin,
-            repository,
-            api,
-            controller.signal,
-            options,
+        ? await pushWithinLimits(() =>
+            push(
+              process.cwd(),
+              config.origin,
+              repository,
+              api,
+              controller.signal,
+              options,
+            ),
           )
         : command === "pull"
           ? await pull(
