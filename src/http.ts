@@ -10,6 +10,7 @@ export type TransportCode =
   | "not_found"
   | "conflict"
   | "rate_limited"
+  | "too_large"
   | "service"
   | "http"
   | "redirect"
@@ -25,6 +26,8 @@ const messages: Record<TransportCode, string> = {
   not_found: "The requested account or resource is unavailable.",
   conflict: "The operation conflicts with the current server state.",
   rate_limited: "The server limit was reached. Try again later.",
+  too_large:
+    "PrjLab refused this upload: a size or storage limit was reached (file, repository or account).",
   service: "The service is temporarily unavailable.",
   http: "The server rejected the request.",
   redirect: "The API redirected the request. Credentials were not forwarded.",
@@ -248,6 +251,7 @@ export class ApiTransport {
           403: "permission",
           404: "not_found",
           409: "conflict",
+          413: "too_large",
           429: "rate_limited",
         };
         throw new TransportError(

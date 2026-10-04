@@ -72,8 +72,9 @@ resume the same saved snapshot. Sessions expire after 24 hours without renewal.
 ## Transport and limits
 
 Transfers use bearer credentials for the configured origin, reject redirects,
-validate SHA-256 and limit each request to 10 seconds. A sync command has a
-5-minute deadline. Token refresh happens before the command; an expired token
+validate SHA-256 and limit a small request to 10 seconds; a large object gets time
+in proportion to its size (one more second per 64 KiB). A sync command has a
+30-minute deadline. Token refresh happens before the command; an expired token
 during transfer fails with saved retry state. There is no background sync,
 automatic retry or credential logging.
 

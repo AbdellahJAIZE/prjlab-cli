@@ -153,7 +153,7 @@ for (const [status, code] of [
   [403, "permission"],
   [404, "not_found"],
   [409, "conflict"],
-  [413, "http"],
+  [413, "too_large"],
   [429, "rate_limited"],
   [500, "service"],
   [503, "service"],
