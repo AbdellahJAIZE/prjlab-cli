@@ -5,9 +5,12 @@ import { randomUUID } from "node:crypto";
 import { withSync, ProjectError } from "./snapshot.js";
 import {
   isMirrorPath,
+  reconcile,
   type ContextSummary,
   type ContextRestore,
 } from "./context-mirror.js";
+/** Normalized manifest bytes the server accepts (512 KiB per 1,000 entries). */
+export const MANIFEST_BYTE_LIMIT = 2560 * 1024;
 export interface Changes {
   added: string[];
   modified: string[];
@@ -248,7 +251,8 @@ export async function push(
       const captured = await project.capture({
         sessions: options.sessions !== false,
       });
-      context = captured.context;
+      // Say what this version carries, not what was found on this machine.
+      context = reconcile(captured.context, captured.manifest.entries);
       // Like git: nothing changed since the last push or pull, no new version.
       if (state.baseVersion !== null && captured.id === state.baseSnapshot)
         return {
@@ -259,9 +263,12 @@ export async function push(
           upToDate: true,
           changes: diffSnapshots(captured.manifest, captured.manifest),
         };
-      // Mirrors the server's MANIFEST_BYTE_LIMIT (512 KiB): 1,000 entries
-      // with 240-character paths fit; anything larger is refused up front.
-      if (Buffer.byteLength(JSON.stringify(captured.manifest)) > 512 * 1024)
+      // Mirrors the server's MANIFEST_BYTE_LIMIT: MAX_ENTRIES entries with
+      // 240-character paths fit; anything larger is refused up front.
+      if (
+        Buffer.byteLength(JSON.stringify(captured.manifest)) >
+        MANIFEST_BYTE_LIMIT
+      )
         throw new ProjectError(
           "Manifest exceeds the server development limit.",
         );

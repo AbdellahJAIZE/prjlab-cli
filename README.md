@@ -105,8 +105,23 @@ merged; close it and pull again. `CLAUDE_CONFIG_DIR` is honoured.
 In a **public** repository, memory and sessions stay visible to members only unless
 the owner publishes them in Settings, after a credential scan.
 
-Limits: 1,000 files, 5 MiB per file, 100 MiB per snapshot. Symlinks, hard links,
-unsafe paths and case collisions are rejected.
+Limits: 5,000 entries (files plus context), 25 MiB per file, 500 MiB per snapshot
+(raised in 0.7.0 from 1,000 / 5 MiB / 100 MiB; an older `prj` cannot pull a version
+that uses the new room, so update it first: `npm install -g prjlab-cli`).
+Symlinks, hard links, unsafe paths and case collisions are rejected.
+
+When a folder is over the limits, `prj push` says which limit, by how much, and
+which parts of the folder are largest. On a terminal it then asks what should stay
+out and writes your choice to `.prjignore`, so it applies to every later push; the
+files stay on your machine. Without a terminal it stops with that explanation.
+
+Context is never dropped by accident. A broad `.prjignore` rule such as `*` or `/*`
+applies to the folder only: memory and sessions still travel, which makes a
+context-only repository a one-line `.prjignore`. Only a rule that names
+`.prjcontext` (for example `.prjcontext/agents/*/sessions/**`) leaves context out.
+The `Context:` line of a push counts what the version carries; anything found on
+your machine but not uploaded (left out by a rule, or a session too large to send)
+is listed as a warning.
 
 ## Local snapshots
 

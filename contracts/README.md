@@ -1,6 +1,6 @@
 # PrjLab development API contract
 
-Version: 0.8.0-development. Canonical source: this public CLI repository's
+Version: 0.9.0-development. Canonical source: this public CLI repository's
 `contracts/` directory. MIT licensed. No private implementation is needed to
 consume it; the platform vendors the same files for integration testing.
 
@@ -66,7 +66,8 @@ outside this CLI-facing contract. Version commit, tip and immutable manifest rea
 - Binary object PUT/GET uses `/repositories/{id}/objects/{hash}`. PUT accepts raw
   application/octet-stream and returns `{hash, bytes}`; GET returns bytes. SHA-256
   must match the lowercase hash. Owners/writers upload; all members download.
-  Development limits are 5 MiB/object, 100 MiB/repository and 1,000 objects.
+  Limits (0.9) are 25 MiB/object, 500 MiB/repository and 20,000 objects across the
+  history (four times the 5,000 entries of one version, so a full repository can change).
   Repeated identical uploads are idempotent. No rate-limit policy is implemented.
 - Responses are private/no-store. Clients must bound response bytes and time,
   reject redirects carrying credentials, and avoid logging server error bodies.
@@ -74,7 +75,7 @@ outside this CLI-facing contract. Version commit, tip and immutable manifest rea
 ## Snapshot compatibility
 
 Local format version 1: entries contain path, SHA-256 hash, byte size and kind
-(file/instruction/memory/session). Limits: 1,000 entries, 5 MiB per file, 100 MiB
+(file/instruction/memory/session). Limits (0.9): 5,000 entries, 25 MiB per file, 500 MiB
 aggregate, and 240 UTF-8 bytes per portable path. Empty files have size zero.
 
 JSON Schema covers shape and per-field limits. It is not the whole validation:

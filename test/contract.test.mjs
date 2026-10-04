@@ -21,13 +21,13 @@ test("every operation has a unique ID and a documented success schema", () => {
         else if (definition.content["application/octet-stream"]) {
           assert.equal(
             definition.content["application/octet-stream"]["x-max-bytes"],
-            5242880,
+            26214400,
           );
         } else if (definition.content["application/zip"]) {
-          // One version: at most 100 MiB of files (the push limit).
+          // One version: at most 500 MiB of files (the push limit).
           assert.equal(
             definition.content["application/zip"]["x-max-bytes"],
-            104857600,
+            524288000,
           );
         } else {
           const name = definition.content["application/json"].schema.$ref
@@ -79,10 +79,10 @@ test("version-1 snapshot schema and CLI agree on valid and malformed manifests",
     { ...valid, version: 2 },
     { ...valid, token: "secret" },
     { version: 1, entries: [{ ...entry, hash: "invalid" }] },
-    { version: 1, entries: [{ ...entry, size: 5242881 }] },
+    { version: 1, entries: [{ ...entry, size: 26214401 }] },
     { version: 1, entries: [{ ...entry, kind: "executable" }] },
     { version: 1, entries: [{ ...entry, path: "" }] },
-    { version: 1, entries: Array(1001).fill(entry) },
+    { version: 1, entries: Array(5001).fill(entry) },
   ]) {
     assert.equal(check(value), false);
     assert.throws(() => validateSnapshot(value));
@@ -100,10 +100,10 @@ test("binary contract checks response types and transfer bounds", () => {
   response("get", path, 200, Buffer.alloc(0));
   response("put", path, 200, fixtures.ObjectReceipt, Buffer.alloc(0));
   assert.throws(() => response("get", path, 200, "text"));
-  assert.throws(() => response("get", path, 200, Buffer.alloc(5242881)));
+  assert.throws(() => response("get", path, 200, Buffer.alloc(26214401)));
   assert.throws(() => response("put", path, 200, fixtures.ObjectReceipt, {}));
   assert.throws(() =>
-    response("put", path, 200, fixtures.ObjectReceipt, Buffer.alloc(5242881)),
+    response("put", path, 200, fixtures.ObjectReceipt, Buffer.alloc(26214401)),
   );
 });
 

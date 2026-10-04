@@ -10,9 +10,9 @@ export interface Snapshot {
   version: 1;
   entries: Entry[];
 }
-export const MAX_FILE = 5 * 1024 * 1024,
-  MAX_TOTAL = 100 * 1024 * 1024,
-  MAX_ENTRIES = 1000;
+export const MAX_FILE = 25 * 1024 * 1024,
+  MAX_TOTAL = 500 * 1024 * 1024,
+  MAX_ENTRIES = 5000;
 export const HASH = /^[a-f0-9]{64}$/;
 const RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
 export function safePath(value: unknown): string {

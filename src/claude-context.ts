@@ -10,6 +10,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { gzipSync, gunzipSync } from "node:zlib";
+import { MAX_FILE } from "./manifest.js";
 import {
   readdir,
   readFile,
@@ -26,7 +27,7 @@ export const DIR_TOKEN = "{{PRJ_CLAUDE_PROJECT_DIR}}";
 /** Transcripts are cut at the first line end after this many bytes, so an
  * appended session changes only its last segment and earlier ones dedupe. */
 export const SEGMENT_BYTES = 1024 * 1024;
-const MAX_OBJECT = 5 * 1024 * 1024;
+const MAX_OBJECT = MAX_FILE;
 const MAX_TRANSCRIPT = 256 * 1024 * 1024;
 /** Per-project keys that describe the project, not this machine (ClaudeHub types.ts). */
 export const PORTABLE_CONFIG_KEYS = [

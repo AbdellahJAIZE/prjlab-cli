@@ -76,7 +76,7 @@ validate SHA-256 and limit each request to 10 seconds. A sync command has a
 during transfer fails with saved retry state. There is no background sync,
 automatic retry or credential logging.
 
-Limits: 5 MiB per file, 100 MiB per snapshot, 1,000 entries; the normalized
-remote manifest must fit in 512 KiB within a 1 MiB request. Repository object and
+Limits: 25 MiB per file, 500 MiB per snapshot, 5,000 entries; the normalized
+remote manifest must fit in 2,560 KiB within a 4 MiB request. Repository object and
 version quotas also apply, and history keeps every pushed object, so a repository
 can fill with historical content.

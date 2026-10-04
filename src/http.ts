@@ -1,4 +1,7 @@
 import { createHash } from "node:crypto";
+import { MAX_FILE } from "./manifest.js";
+/** JSON bodies and replies: a full manifest (2,560 KiB) plus its envelope. */
+const JSON_BYTES = 4 * 1024 * 1024;
 /** Bounded transport only. Callers must validate response data against the API contract. */
 export type TransportCode =
   | "configuration"
@@ -88,7 +91,7 @@ export class ApiTransport {
     this.#origin = origin(server, loopback);
     this.#token = credential.accessToken;
     this.#timeout = options.timeoutMs ?? 10000;
-    this.#limit = options.maxResponseBytes ?? 1024 * 1024;
+    this.#limit = options.maxResponseBytes ?? JSON_BYTES;
     if (
       origin(credential.origin, loopback) !== this.#origin ||
       typeof this.#token !== "string" ||
@@ -99,7 +102,7 @@ export class ApiTransport {
       this.#timeout > 30000 ||
       !Number.isSafeInteger(this.#limit) ||
       this.#limit < 1 ||
-      this.#limit > 1024 * 1024
+      this.#limit > JSON_BYTES
     )
       throw new TransportError("configuration");
   }
@@ -124,7 +127,7 @@ export class ApiTransport {
     if (
       method === "PUT" &&
       (!Buffer.isBuffer(bytes) ||
-        bytes.length > 5 * 1024 * 1024 ||
+        bytes.length > MAX_FILE ||
         createHash("sha256").update(bytes).digest("hex") !== hash)
     )
       throw new TransportError("request");
@@ -185,12 +188,12 @@ export class ApiTransport {
     )
       throw new TransportError("request");
     let body: string | Buffer | undefined = options.binaryBody;
-    const limit = options.binaryResponse ? 5 * 1024 * 1024 : this.#limit;
+    const limit = options.binaryResponse ? MAX_FILE : this.#limit;
     try {
       if (options.body !== undefined) {
         body = JSON.stringify(options.body);
-        // Manifests may hold 1,000 entries with 240-character paths.
-        if (body === undefined || Buffer.byteLength(body) > 1024 * 1024)
+        // Manifests may hold MAX_ENTRIES entries with 240-character paths.
+        if (body === undefined || Buffer.byteLength(body) > JSON_BYTES)
           throw new Error();
       }
     } catch {
@@ -199,10 +202,18 @@ export class ApiTransport {
     if (options.signal?.aborted) throw new TransportError("cancelled");
     const controller = new AbortController();
     let timedOut = false;
+    // The base timeout covers a small exchange. A large object needs time in
+    // proportion to its size: a tenth of the base timeout per 64 KiB sent (one
+    // second at the default), and for a download, whose size is unknown until
+    // it arrives, the allowance of a full object.
+    const sending = Buffer.isBuffer(body) ? body.length : 0;
+    const allowance =
+      Math.floor((options.binaryResponse ? MAX_FILE : sending) / (64 * 1024)) *
+      (this.#timeout / 10);
     const timer = setTimeout(() => {
       timedOut = true;
       controller.abort();
-    }, this.#timeout);
+    }, this.#timeout + allowance);
     const signal = options.signal
       ? AbortSignal.any([controller.signal, options.signal])
       : controller.signal;
