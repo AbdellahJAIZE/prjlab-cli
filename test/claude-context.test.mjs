@@ -22,6 +22,7 @@ import {
   captureClaude,
   restoreClaude,
   SEGMENT_BYTES,
+  SEGMENT_MAX_BYTES,
   ROOT_TOKEN,
   DIR_TOKEN,
 } from "../dist/claude-context.js";
@@ -103,6 +104,22 @@ test("segments are deterministic and an append changes only the last one", () =>
     completeLines(Buffer.from('{"a":1}\n{"b":')).toString(),
     '{"a":1}\n',
   );
+  // One line far larger than a segment (an attached document) is cut at a
+  // fixed size, never inside a UTF-8 character, and still joins back exactly.
+  const huge = Buffer.concat([
+    Buffer.from(line({ before: 1 })),
+    Buffer.from(
+      JSON.stringify({ attachment: "é".repeat(SEGMENT_MAX_BYTES) }) + "\n",
+    ),
+    Buffer.from(line({ after: 1 })),
+  ]);
+  const cut = segment(huge);
+  assert.ok(cut.length >= 3);
+  assert.ok(cut.every((p) => p.length <= SEGMENT_MAX_BYTES));
+  assert.deepEqual(Buffer.concat(cut), huge);
+  for (const p of cut) assert.ok(!p.toString("utf8").includes("�"));
+  const longer = segment(Buffer.concat([huge, Buffer.from(line({ more: 2 }))]));
+  for (let i = 0; i < cut.length - 1; i++) assert.ok(longer[i].equals(cut[i]));
 });
 
 async function seed(layout, root) {
