@@ -1,5 +1,13 @@
 # History
 
+## 2026-10-04 — 0.8.2: honest refusals
+
+`prj create` blamed the name whenever the server answered 409, but the server
+answers 409 too when the account owns the maximum of 100 repositories; it now
+looks at what the account owns and says which it was. A 413 is reported as a
+size or storage limit instead of "the server rejected the request". SYNC.md
+described the old 10-second and 5-minute time limits.
+
 ## 2026-10-04 — 0.8.1: a session with one enormous line can travel
 
 A real session held a single 34 MiB line (an attached document, base64 encoded).

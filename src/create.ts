@@ -71,10 +71,34 @@ export const USAGE =
   'Usage: prj create [<name>] [-d "description"] [--no-link]. Without a name the folder\'s name is used.';
 interface Api {
   request(
-    method: "POST",
+    method: "GET" | "POST",
     route: string,
     options?: { body?: unknown; signal?: AbortSignal },
   ): Promise<{ status: number; data: unknown }>;
+}
+/** Repositories one account may own (the server answers 409 beyond it). */
+const ACCOUNT_REPOSITORIES = 100;
+/**
+ * The server answers 409 both for a name that is taken and for an account that
+ * owns the maximum number of repositories. Look at what the account owns to
+ * say which one it was, instead of blaming the name.
+ */
+async function refused(api: Api, slug: string, signal?: AbortSignal) {
+  const taken = `You already have a repository named ${slug}. Link this folder to it with prj remote add origin <handle>/${slug}, or choose another name.`;
+  let owned: { slug?: unknown }[];
+  try {
+    const listed = await api.request("GET", "/api/v1/repositories", { signal });
+    if (listed.status !== 200 || !Array.isArray(listed.data)) return taken;
+    owned = (listed.data as { slug?: unknown; role?: unknown }[]).filter(
+      (r) => r && typeof r === "object" && r.role === "owner",
+    );
+  } catch {
+    return taken;
+  }
+  if (owned.some((r) => r.slug === slug)) return taken;
+  if (owned.length >= ACCOUNT_REPOSITORIES)
+    return `Your account already owns ${owned.length} repositories, which is the limit. Delete one you no longer need at https://prjlab.com, then run prj create again.`;
+  return taken;
 }
 export interface Created {
   id: string;
@@ -134,9 +158,7 @@ export async function create(
     });
   } catch (error) {
     if (error instanceof TransportError && error.code === "conflict")
-      throw new ProjectError(
-        `You already have a repository named ${slug}. Link this folder to it with prj remote add origin <handle>/${slug}, or choose another name.`,
-      );
+      throw new ProjectError(await refused(api, slug, signal));
     if (error instanceof TransportError && error.status === 400)
       throw new ProjectError(`PrjLab refused that name. ${NAME_RULE}`);
     throw error;

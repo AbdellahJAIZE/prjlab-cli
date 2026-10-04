@@ -158,6 +158,36 @@ test("taken, invalid and reserved names are explained without touching the folde
   );
 });
 
+test("at the repository limit the refusal names the limit, not the name", async (t) => {
+  const root = await folder(t);
+  const owned = Array.from({ length: 100 }, (_, i) => ({
+    slug: `r${i}`,
+    role: "owner",
+  }));
+  const api = (list) => ({
+    request: async (method) => {
+      if (method === "GET") return { status: 200, data: list };
+      throw new TransportError("conflict", 409);
+    },
+  });
+  await assert.rejects(
+    create(root, origin, api(owned), undefined, { name: "one-more" }),
+    /already owns 100 repositories, which is the limit/,
+  );
+  // The name really is taken: say so, even at the limit.
+  await assert.rejects(
+    create(root, origin, api(owned), undefined, { name: "r7" }),
+    /already have a repository named r7/,
+  );
+  // Shared repositories do not count towards what the account owns.
+  const shared = owned.map((r) => ({ ...r, role: "reader" }));
+  await assert.rejects(
+    create(root, origin, api(shared), undefined, { name: "one-more" }),
+    /already have a repository named one-more/,
+  );
+  assert.equal(await exists(path.join(root, ".prj")), false);
+});
+
 test("an unexpected reply is not trusted", async (t) => {
   const root = await folder(t);
   const api = {
