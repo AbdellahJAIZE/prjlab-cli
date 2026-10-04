@@ -8,6 +8,7 @@ import { LoginSession } from "./login-session.js";
 import { ProjectError, LimitError } from "./snapshot.js";
 import { ask, leaveOut } from "./review.js";
 import { create, describeCreated, parseCreateArguments } from "./create.js";
+import { gitFolder } from "./git-integration.js";
 import { TransportError } from "./http.js";
 import path from "node:path";
 import type { Changes, SyncChanges } from "./sync.js";
@@ -294,18 +295,27 @@ export async function syncCommands(args: readonly string[]) {
     if (command === "create") {
       const wanted = parseCreateArguments(args.slice(1));
       const { config, api } = await signedIn(controller.signal);
+      // In a git folder git carries the files: create the repository only and
+      // say how to point git at it; prj init then makes the context follow.
+      const inGit =
+        wanted.link !== false && (await gitFolder(process.cwd())) !== null;
       const made = await create(
         process.cwd(),
         config.origin,
         api,
         controller.signal,
-        wanted,
+        inGit ? { ...wanted, link: false } : wanted,
       );
-      return {
-        code: 0,
-        stdout: describeCreated(config.origin, made).join("\n") + "\n",
-        stderr: "",
-      };
+      const lines = inGit
+        ? [
+            `Created ${config.origin}/${made.name} (${made.visibility}).`,
+            "This folder is a git repository. Point git at it; the context follows:",
+            `  git remote add origin ${config.origin}/${made.name}.git`,
+            "  git push -u origin HEAD",
+            "  prj init",
+          ]
+        : describeCreated(config.origin, made);
+      return { code: 0, stdout: lines.join("\n") + "\n", stderr: "" };
     }
     const parsed =
       command === "push"

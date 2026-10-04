@@ -19,8 +19,9 @@ test("help describes actual capabilities", () => {
     "push [origin]",
     "pull [origin]",
     "remote add origin <handle>/<name>",
-    "remote -v",
-    "remote remove origin",
+    "remote -v | set-url | remove",
+    "context push|pull",
+    "git clone https://prjlab.com/<handle>/<name>.git",
     "clone <handle>/<name> [<dir>]",
   ])
     assert.ok(r.stdout.includes(command), command);

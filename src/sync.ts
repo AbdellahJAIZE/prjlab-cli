@@ -104,6 +104,8 @@ export interface PushOptions {
   message?: string;
   /** false: leave AI-tool sessions out of this version (--no-sessions). */
   sessions?: boolean;
+  /** Git folders: the version carries only AI-tool context; git carries files. */
+  contextOnly?: boolean;
 }
 // Splits `-m <text>` / `--message <text>` / `--message=<text>` out of push arguments.
 export function parsePushArguments(args: readonly string[]): {
@@ -250,6 +252,7 @@ export async function push(
     if (!state.pendingPush) {
       const captured = await project.capture({
         sessions: options.sessions !== false,
+        contextOnly: options.contextOnly === true,
       });
       // Say what this version carries, not what was found on this machine.
       context = reconcile(captured.context, captured.manifest.entries);
@@ -412,6 +415,7 @@ export async function pull(
   repository: string,
   api: SyncApi,
   signal: AbortSignal,
+  pullOptions: { contextOnly?: boolean } = {},
 ) {
   return withSync(root, async (project) => {
     const state = link(await project.readLink(), origin, repository);
@@ -471,6 +475,8 @@ export async function pull(
     const adopted = await project.adopt(
       state.pendingPull.snapshot,
       state.baseSnapshot,
+      undefined,
+      pullOptions.contextOnly === true,
     );
     const previousBase = state.baseSnapshot;
     const previousVersion = state.baseVersion;

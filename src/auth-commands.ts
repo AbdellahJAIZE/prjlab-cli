@@ -5,6 +5,12 @@ import {
   withCredentialLock,
 } from "./credential-store.js";
 import { LoginSession } from "./login-session.js";
+import {
+  configureGitCredentials,
+  removeGitCredentials,
+  parseCredentialRequest,
+  credentialMatches,
+} from "./git-integration.js";
 export async function authCommands(args: readonly string[]) {
   const command = args[0];
   if (!["login", "logout", "whoami"].includes(command ?? "")) return undefined;
@@ -25,6 +31,7 @@ export async function authCommands(args: readonly string[]) {
       const session = new LoginSession(config, store);
       if (command === "logout") {
         await session.logout();
+        await removeGitCredentials(config.origin).catch(() => {});
         return "Local PrjLab credentials removed. Existing provider sessions and issued tokens are not revoked.";
       }
       if (command === "login")
@@ -35,7 +42,18 @@ export async function authCommands(args: readonly string[]) {
         command === "login"
           ? await session.login(controller.signal)
           : await session.whoami(controller.signal);
-      return `Signed in as ${account.handle}.`;
+      if (command !== "login") return `Signed in as ${account.handle}.`;
+      const gitSetup = await configureGitCredentials(config.origin).catch(
+        () => "failed",
+      );
+      return (
+        `Signed in as ${account.handle}.` +
+        (gitSetup === "configured"
+          ? `\ngit will sign in to ${config.origin} with this account (no password needed).`
+          : gitSetup === "no-git"
+            ? "\ngit was not found; install git to clone and push PrjLab repositories."
+            : "")
+      );
     });
     return { code: 0, stdout: message + "\n", stderr: "" };
   } catch (error) {
@@ -51,5 +69,35 @@ export async function authCommands(args: readonly string[]) {
     clearTimeout(timer);
     process.removeListener("SIGINT", cancel);
     process.removeListener("SIGTERM", cancel);
+  }
+}
+
+/** `git credential` helper protocol: `prj git-credential get` (called by git). */
+export async function gitCredential(action: string | undefined, input: string) {
+  if (action !== "get") return { code: 0, stdout: "", stderr: "" };
+  const fields = parseCredentialRequest(input);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 60000);
+  try {
+    const config = readLoginConfig();
+    if (!credentialMatches(fields, config.origin))
+      return { code: 0, stdout: "", stderr: "" };
+    const directory = await credentialDirectory(config);
+    const token = await withCredentialLock(directory, async () =>
+      new LoginSession(
+        config,
+        await secureStore(config, directory),
+      ).accessToken(controller.signal),
+    );
+    return { code: 0, stdout: `username=prj\npassword=${token}\n`, stderr: "" };
+  } catch {
+    return {
+      code: 0,
+      stdout: "",
+      stderr:
+        "prj: not signed in to PrjLab. Run prj login, or use a personal access token.\n",
+    };
+  } finally {
+    clearTimeout(timer);
   }
 }

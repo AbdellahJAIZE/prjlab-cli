@@ -435,7 +435,11 @@ export class LimitError extends ProjectError {
     super(describeUsage(usage).join("\n"));
   }
 }
-async function survey(base: string, meta: string): Promise<Usage> {
+async function survey(
+  base: string,
+  meta: string,
+  contextOnly = false,
+): Promise<Usage> {
   const custom = await customRules(base);
   const usage: Usage = {
     files: 0,
@@ -448,7 +452,8 @@ async function survey(base: string, meta: string): Promise<Usage> {
     groups: [],
   };
   const groups = new Map<string, Usage["groups"][number]>();
-  for await (const item of included(base, custom.files)) {
+  // In a git folder git carries the files: only the context is measured.
+  for await (const item of contextOnly ? [] : included(base, custom.files)) {
     if (item.link) {
       usage.links.push(item.name);
       continue;
@@ -493,6 +498,7 @@ async function scan(
   base: string,
   onFile?: (entry: Entry, data: Buffer) => Promise<void>,
   meta?: string,
+  contextOnly = false,
 ): Promise<Snapshot> {
   const custom = await customRules(base);
   const entries: Entry[] = [];
@@ -511,7 +517,7 @@ async function scan(
     entries.push(entry);
     await onFile?.(entry, data);
   };
-  for await (const item of included(base, custom.files)) {
+  for await (const item of contextOnly ? [] : included(base, custom.files)) {
     if (item.link)
       throw new ProjectError(
         "Capture refuses symbolic links. Exclude them explicitly.",
@@ -540,8 +546,8 @@ async function store(meta: string, entry: Entry, data: Buffer) {
   await atomic(file, data);
 }
 /** Refuse an over-limit folder up front, saying which limit and what is largest. */
-async function withinLimits(base: string, meta: string) {
-  const usage = await survey(base, meta);
+async function withinLimits(base: string, meta: string, contextOnly = false) {
+  const usage = await survey(base, meta, contextOnly);
   if (overLimits(usage)) throw new LimitError(usage);
 }
 /** Read-only measurement of what a push of this folder would carry. */
@@ -555,6 +561,8 @@ export async function measure(root: string, options: CaptureOptions = {}) {
 export interface CaptureOptions {
   /** false: leave AI-tool sessions out of this capture (prj push --no-sessions). */
   sessions?: boolean;
+  /** Git folders: capture only the AI-tool context, git carries the files. */
+  contextOnly?: boolean;
 }
 export async function capture(root: string, options: CaptureOptions = {}) {
   const { base, meta } = await state(root);
@@ -819,15 +827,24 @@ async function restoreLocked(
   id: string,
   checkpoint: () => Promise<void>,
   baselineOverride?: string | null,
+  mirrorOnly = false,
 ) {
-  const target = await load(meta, id),
-    originalHead = await head(meta),
+  const loaded = await load(meta, id);
+  // Context-only sync (git folders): never touch the folder's own files.
+  const target = mirrorOnly
+    ? { ...loaded, entries: loaded.entries.filter((e) => isMirrorPath(e.path)) }
+    : loaded;
+  const originalHead = await head(meta),
     baselineId =
       baselineOverride === undefined ? originalHead : baselineOverride,
     baseline = baselineId
       ? await load(meta, baselineId)
       : { version: 1 as const, entries: [] };
-  const before = new Map(baseline.entries.map((e) => [e.path, e])),
+  const before = new Map(
+      baseline.entries
+        .filter((e) => !mirrorOnly || isMirrorPath(e.path))
+        .map((e) => [e.path, e]),
+    ),
     after = new Map(target.entries.map((e) => [e.path, e]));
   // Catch portable collisions between untouched local and incoming names as well.
   const localSnapshot = await scan(base);
@@ -996,6 +1013,7 @@ export async function withSync<T>(
       id: string,
       baseline: string | null,
       checkpoint?: () => Promise<void>,
+      mirrorOnly?: boolean,
     ) => Promise<{ changed: number }>;
   }) => Promise<T>,
 ): Promise<T> {
@@ -1043,11 +1061,12 @@ export async function withSync<T>(
         const context = await refreshMirror(meta, base, {
           sessions: options.sessions !== false,
         });
-        await withinLimits(base, meta);
+        await withinLimits(base, meta, options.contextOnly === true);
         const manifest = await scan(
           base,
           (entry, data) => store(meta, entry, data),
           meta,
+          options.contextOnly === true,
         );
         const json = JSON.stringify(manifest),
           id = digest(Buffer.from(json));
@@ -1080,8 +1099,8 @@ export async function withSync<T>(
         await atomic(path.join(meta, "snapshots", id + ".json"), json);
         return id;
       },
-      adopt: (id, baseline, checkpoint = async () => {}) =>
-        restoreLocked(base, meta, id, checkpoint, baseline),
+      adopt: (id, baseline, checkpoint = async () => {}, mirrorOnly = false) =>
+        restoreLocked(base, meta, id, checkpoint, baseline, mirrorOnly),
     }),
   );
 }
