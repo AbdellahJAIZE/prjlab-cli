@@ -1,6 +1,7 @@
 # Sync: push, pull and clone
 
-Sign in with `prj login` and create a repository at https://prjlab.com/new. Name it
+Sign in with `prj login` and create a repository with `prj create` (or at
+https://prjlab.com/new). Name it
 as `<handle>/<name>` (the owner's handle and the repository name); a repository ID
 from the web app works too.
 

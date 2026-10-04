@@ -1,5 +1,15 @@
 # History
 
+## 2026-10-04 — 0.8.0: prj create
+
+Owner request after creating 68 repositories through the API by hand: make a
+repository from the terminal instead of one by one in the browser. `prj create
+[<name>] [-d "…"] [--no-link]` calls the existing `createRepository` operation
+(no contract change), names the repository after the folder by default, prepares
+`.prj/` when needed and links origin, so a new folder is `prj create && prj push`.
+It refuses a folder that is already linked before anything is created remotely,
+and explains a taken, invalid or reserved name. src/create.ts, test/create.test.mjs.
+
 ## 2026-10-04 — 0.7.0: higher limits (contract 0.9), truthful context report, choose what stays out
 
 Found while moving 60+ real folders to prjlab.com. Three defects in `prj push`:
