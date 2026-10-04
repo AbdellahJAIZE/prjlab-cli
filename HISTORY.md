@@ -1,5 +1,27 @@
 # History
 
+## 2026-10-04 — 0.7.0: higher limits (contract 0.9), truthful context report, choose what stays out
+
+Found while moving 60+ real folders to prjlab.com. Three defects in `prj push`:
+a broad `.prjignore` rule (`/*`) also hid the tool context, so "context-only"
+pushes uploaded an empty version; the `Context:` line printed what was found on
+the machine, not what the version carried, and skipped oversized sessions were
+only visible in `prj context`; an over-limit folder got one generic sentence.
+Fixed on branch fix/push-truthful-context (from main cc6c630): context obeys
+only `.prjignore` rules naming `.prjcontext`; the summary is reconciled against
+the manifest and warnings are printed; `LimitError` names the limit, the amounts
+and the largest parts; on a terminal `prj push` asks what stays out and writes
+`.prjignore` (src/review.ts).
+
+Owner decision the same day: raise the limits for everyone to 5,000 entries,
+25 MiB per file and 500 MiB per repository (contract 0.9: openapi and snapshot
+schema bounds, manifest 2,560 KiB in a 4 MiB request). The CLI reads files into
+buffers sized to the file, allows time in proportion to object size, and lets a
+whole sync run for 30 minutes. A CLI older than 0.7.0 cannot pull a version that
+uses the new room. Plan-based limits (for example higher ones for premium
+members) are noted as a possible later step, not designed. 160 tests pass
+(4 new, test/limits.test.mjs).
+
 ## 2026-09-20 — Session sync merged
 
 PR19 merged303cab2 after all three OS quality checks and security passed

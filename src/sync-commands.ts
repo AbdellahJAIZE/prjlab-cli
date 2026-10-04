@@ -5,7 +5,8 @@ import {
   withCredentialLock,
 } from "./credential-store.js";
 import { LoginSession } from "./login-session.js";
-import { ProjectError } from "./snapshot.js";
+import { ProjectError, LimitError } from "./snapshot.js";
+import { ask, leaveOut } from "./review.js";
 import { TransportError } from "./http.js";
 import path from "node:path";
 import type { Changes, SyncChanges } from "./sync.js";
@@ -173,6 +174,11 @@ interface SyncResult {
   contextError?: string;
   message?: string;
 }
+/** A whole 500 MiB repository must be able to finish; each request still has its own timeout. */
+const SYNC_TIME_LIMIT = 30 * 60 * 1000;
+/** Context that was found but did not travel must be said, never implied. */
+const contextWarnings = (summary: ContextSummary[]) =>
+  summary.flatMap((s) => s.warnings.map((w) => ` warning: ${w}`));
 /** git-like output: where, which versions, what changed, what context travelled. */
 export function formatSync(
   command: "push" | "pull" | "clone",
@@ -188,6 +194,7 @@ export function formatSync(
         ...describeSummary(result.context as ContextSummary[]).map(
           (l) => ` Context: ${l}`,
         ),
+        ...contextWarnings(result.context as ContextSummary[]),
       );
     return lines;
   }
@@ -229,6 +236,7 @@ export function formatSync(
               ? ` (${updated} file${updated === 1 ? "" : "s"} updated)`
               : ""),
         ),
+        ...contextWarnings(result.context as ContextSummary[]),
       );
     } else
       lines.push(
@@ -246,7 +254,33 @@ export async function syncCommands(args: readonly string[]) {
     return undefined;
   const controller = new AbortController(),
     cancel = () => controller.abort();
-  const timer = setTimeout(cancel, 5 * 60 * 1000);
+  let timer = setTimeout(cancel, SYNC_TIME_LIMIT);
+  /**
+   * An over-limit folder is not a dead end on a terminal: show what is large,
+   * let the person choose what stays out (written to .prjignore), try again.
+   * Without a terminal the explanation is the error, and nothing is guessed.
+   */
+  const pushWithinLimits = async <T>(attempt: () => Promise<T>): Promise<T> => {
+    for (let round = 0; ; round++) {
+      try {
+        return await attempt();
+      } catch (error) {
+        if (
+          !(error instanceof LimitError) ||
+          !process.stdin.isTTY ||
+          !process.stderr.isTTY ||
+          round >= 20
+        )
+          throw error;
+        // Time spent deciding must not count against the transfer.
+        clearTimeout(timer);
+        const picked = await ask(error.usage);
+        timer = setTimeout(cancel, SYNC_TIME_LIMIT);
+        if (!picked.length || !(await leaveOut(process.cwd(), picked)))
+          throw error;
+      }
+    }
+  };
   process.once("SIGINT", cancel);
   process.once("SIGTERM", cancel);
   try {
@@ -288,13 +322,15 @@ export async function syncCommands(args: readonly string[]) {
       linked ?? (await resolveRepository(ref!, api, controller.signal));
     const result =
       command === "push"
-        ? await push(
-            process.cwd(),
-            config.origin,
-            repository,
-            api,
-            controller.signal,
-            options,
+        ? await pushWithinLimits(() =>
+            push(
+              process.cwd(),
+              config.origin,
+              repository,
+              api,
+              controller.signal,
+              options,
+            ),
           )
         : command === "pull"
           ? await pull(

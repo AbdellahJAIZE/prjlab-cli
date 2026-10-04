@@ -11,7 +11,7 @@
     },
     "entries": {
       "type": "array",
-      "maxItems": 1000,
+      "maxItems": 5000,
       "items": {
         "type": "object",
         "properties": {
@@ -27,7 +27,7 @@
           "size": {
             "type": "integer",
             "minimum": 0,
-            "maximum": 5242880
+            "maximum": 26214400
           },
           "kind": {
             "enum": ["file", "instruction", "memory", "session"]

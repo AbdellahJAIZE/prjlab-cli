@@ -141,6 +141,49 @@ export async function applyContext(
   );
   return [{ tool: "claude-code", label: "Claude Code", ...report }];
 }
+/** What a version's entries actually carry for Claude Code. */
+export function travelling(entries: readonly { path: string }[]) {
+  const sessions = new Set<string>();
+  let memories = 0,
+    settings = false;
+  for (const { path: name } of entries) {
+    if (!name.startsWith(CLAUDE_PREFIX)) continue;
+    const rel = name.slice(CLAUDE_PREFIX.length);
+    if (rel.startsWith("memory/")) memories++;
+    else if (rel.startsWith("sessions/")) sessions.add(rel.split("/")[1]!);
+    else if (rel === "project.json") settings = true;
+  }
+  return { memories, sessions: sessions.size, settings };
+}
+/**
+ * Report what the version carries, not what was found on this machine. Context
+ * that was found but left out (by a .prjignore rule) becomes a warning, so a
+ * push can never claim sessions it did not upload.
+ */
+export function reconcile(
+  found: ContextSummary[],
+  entries: readonly { path: string }[],
+): ContextSummary[] {
+  const sent = travelling(entries);
+  return found.map((s) => {
+    const warnings = [...s.warnings];
+    const left = (n: number, one: string, many: string) =>
+      `${n} ${n === 1 ? one : many} found on this machine ${n === 1 ? "is" : "are"} left out by .prjignore and ${n === 1 ? "was" : "were"} not uploaded.`;
+    if (s.sessions > sent.sessions)
+      warnings.push(left(s.sessions - sent.sessions, "session", "sessions"));
+    if (s.memories > sent.memories)
+      warnings.push(
+        left(s.memories - sent.memories, "memory file", "memory files"),
+      );
+    return {
+      ...s,
+      memories: sent.memories,
+      sessions: sent.sessions,
+      settings: s.settings && sent.settings,
+      warnings,
+    };
+  });
+}
 /** One line per tool, for push/pull/status output. */
 export function describeSummary(summary: ContextSummary[]) {
   return summary.map(
