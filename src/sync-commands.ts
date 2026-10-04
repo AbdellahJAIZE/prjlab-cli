@@ -7,6 +7,7 @@ import {
 import { LoginSession } from "./login-session.js";
 import { ProjectError, LimitError } from "./snapshot.js";
 import { ask, leaveOut } from "./review.js";
+import { create, describeCreated, parseCreateArguments } from "./create.js";
 import { TransportError } from "./http.js";
 import path from "node:path";
 import type { Changes, SyncChanges } from "./sync.js";
@@ -127,7 +128,7 @@ async function remoteCommand(args: readonly string[], signal: AbortSignal) {
     );
     if (checked.status === 404 || checked.status === 403)
       throw new ProjectError(
-        "That repository was not found or you do not have access. Create it at https://prjlab.com/new first.",
+        "That repository was not found or you do not have access. Create it with prj create <name>, or at https://prjlab.com/new.",
       );
     if (checked.status !== 200) throw new TransportError("response");
     const outcome = await addRemote(
@@ -250,7 +251,7 @@ export function formatSync(
 }
 export async function syncCommands(args: readonly string[]) {
   const command = args[0];
-  if (!["push", "pull", "clone", "remote"].includes(command ?? ""))
+  if (!["push", "pull", "clone", "remote", "create"].includes(command ?? ""))
     return undefined;
   const controller = new AbortController(),
     cancel = () => controller.abort();
@@ -290,6 +291,22 @@ export async function syncCommands(args: readonly string[]) {
         stdout: await remoteCommand(args.slice(1), controller.signal),
         stderr: "",
       };
+    if (command === "create") {
+      const wanted = parseCreateArguments(args.slice(1));
+      const { config, api } = await signedIn(controller.signal);
+      const made = await create(
+        process.cwd(),
+        config.origin,
+        api,
+        controller.signal,
+        wanted,
+      );
+      return {
+        code: 0,
+        stdout: describeCreated(config.origin, made).join("\n") + "\n",
+        stderr: "",
+      };
+    }
     const parsed =
       command === "push"
         ? parsePushArguments(args.slice(1))

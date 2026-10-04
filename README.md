@@ -38,18 +38,21 @@ install script or compiler is needed.
 ## Quick start
 
 1. Create an account at [prjlab.com](https://prjlab.com/sign-in) and pick a handle.
-2. Create a repository at [prjlab.com/new](https://prjlab.com/new).
-3. In your project directory:
+2. In your project directory:
 
 ```sh
 prj login                                 # opens your browser once
-prj init                                  # creates .prj/ (add it to .gitignore)
-prj remote add origin you/your-repo       # link this directory, like git
+prj create                                # private repository named after this directory, linked
 prj push -m "First version"               # upload this directory as version 1
 prj push -m "what changed"                # later: describe the version (up to 200 characters)
 ```
 
-4. On another machine, or for a friend you invited:
+`prj create my-name -d "what it is"` picks the name and a description, and
+`--no-link` only creates the repository. You can still create one at
+[prjlab.com/new](https://prjlab.com/new) and link it with `prj init` and
+`prj remote add origin you/your-repo`.
+
+3. On another machine, or for a friend you invited:
 
 ```sh
 prj clone you/your-repo         # into ./your-repo

@@ -1,4 +1,4 @@
-export const VERSION = "0.7.0";
+export const VERSION = "0.8.0";
 const HELP = `prj ${VERSION} — push, pull and clone your projects with their context.
 
 Usage: prj <command> [arguments]
@@ -8,7 +8,10 @@ Account
   whoami                             Show the signed-in handle
   logout                             Remove the saved credentials on this machine
 
-Sync (needs login; create repositories at https://prjlab.com/new)
+Sync (needs login)
+  create [<name>] [-d "…"] [--no-link]
+                                     Create a private repository (named after this
+                                     directory by default) and link the directory
   remote add origin <handle>/<name>  Link this directory to a repository
   remote -v                          Show the linked repository
   remote set-url origin <handle>/<name>
