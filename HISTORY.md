@@ -1,5 +1,15 @@
 # History
 
+## 2026-10-04 — 0.8.1: a session with one enormous line can travel
+
+A real session held a single 34 MiB line (an attached document, base64 encoded).
+Segments ended only at line breaks, so that line became one segment that gzips to
+25.8 MiB, over the 25 MiB object limit, and the whole session was skipped.
+`segment()` now cuts a line that would exceed 8 MiB at a fixed size, on a UTF-8
+character boundary. Restore already joins the segments before reading them, so
+older clients pull such a session correctly; the web viewer skips a row it
+cannot parse. No contract change.
+
 ## 2026-10-04 — 0.8.0: prj create
 
 Owner request after creating 68 repositories through the API by hand: make a
