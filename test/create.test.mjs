@@ -160,7 +160,7 @@ test("taken, invalid and reserved names are explained without touching the folde
 
 test("at the repository limit the refusal names the limit, not the name", async (t) => {
   const root = await folder(t);
-  const owned = Array.from({ length: 100 }, (_, i) => ({
+  const owned = Array.from({ length: 200 }, (_, i) => ({
     slug: `r${i}`,
     role: "owner",
   }));
@@ -172,7 +172,7 @@ test("at the repository limit the refusal names the limit, not the name", async 
   });
   await assert.rejects(
     create(root, origin, api(owned), undefined, { name: "one-more" }),
-    /already owns 100 repositories, which is the limit/,
+    /already owns 200 repositories, which is the limit/,
   );
   // The name really is taken: say so, even at the limit.
   await assert.rejects(
