@@ -117,11 +117,24 @@ export async function gitFolder(cwd: string): Promise<GitFolder | null> {
   };
 }
 const MARK = "# prjlab-context-hook";
-const HOOKS: Record<string, { run: string; stdin: boolean; gate?: string }> = {
+/**
+ * git pull and git switch move inner repositories (submodule.recurse); a plain
+ * git merge does not. Where prj turned that setting on, a merge follows too.
+ */
+const FOLLOW = [
+  'if [ -f .gitmodules ] && [ "$(git config --bool submodule.recurse 2>/dev/null)" = "true" ]; then',
+  "  git submodule update --recursive >/dev/null 2>&1 ||",
+  '    echo "prj: an inner repository could not follow this merge. Run: git submodule update" >&2',
+  "fi",
+];
+const HOOKS: Record<
+  string,
+  { run: string; stdin: boolean; gate?: string; first?: string[] }
+> = {
   // Before code leaves, the AI context goes up (never blocks the push).
   "pre-push": { run: "context push --quiet", stdin: true },
   // After code arrives, the AI context comes down.
-  "post-merge": { run: "context pull --quiet", stdin: false },
+  "post-merge": { run: "context pull --quiet", stdin: false, first: FOLLOW },
   "post-checkout": {
     run: "context pull --quiet",
     stdin: false,
@@ -141,6 +154,7 @@ function hookScript(name: string) {
         ? `  printf '%s\\n' "$input" | ${previous} "$@" || exit $?`
         : `  ${previous} "$@" || exit $?`,
       "fi",
+      ...(h.first ?? []),
       '[ -n "$PRJ_NO_CONTEXT_HOOKS" ] && exit 0',
       h.gate ?? "",
       `${selfCommand(h.run)} || true`,

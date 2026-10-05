@@ -165,3 +165,33 @@ test("prj login configures git only for PrjLab, resetting other helpers; logout 
   await removeGitCredentials(origin);
   assert.doesNotMatch(await readFile(file, "utf8"), /git-credential/);
 });
+test(
+  "the post-merge hook moves inner repositories only where prj turned that on",
+  { skip: process.platform === "win32" },
+  async (t) => {
+    const dir = await repo(t);
+    const hooks = path.join(dir, ".git", "hooks");
+    await installContextHooks(hooks);
+    const merge = await readFile(path.join(hooks, "post-merge"), "utf8");
+    assert.match(merge, /submodule\.recurse/);
+    assert.match(merge, /git submodule update --recursive/);
+    // The update comes before the context switch-off: it is not context.
+    assert.ok(
+      merge.indexOf("git submodule update") <
+        merge.indexOf('PRJ_NO_CONTEXT_HOOKS" ] && exit 0'),
+    );
+    for (const name of ["pre-push", "post-checkout"])
+      assert.doesNotMatch(
+        await readFile(path.join(hooks, name), "utf8"),
+        /submodule update/,
+      );
+    // Without .gitmodules or the setting the hook does nothing and succeeds.
+    const r = spawnSync("sh", [path.join(hooks, "post-merge"), "0"], {
+      cwd: dir,
+      env: { ...process.env, PRJ_NO_CONTEXT_HOOKS: "1" },
+      encoding: "utf8",
+    });
+    assert.equal(r.status, 0);
+    assert.equal(r.stderr, "");
+  },
+);

@@ -4326,7 +4326,7 @@
         "items": {
           "$ref": "#/components/schemas/RepositorySummary"
         },
-        "maxItems": 100
+        "maxItems": 500
       },
       "Invite": {
         "type": "object",

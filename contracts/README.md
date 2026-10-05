@@ -46,10 +46,10 @@ outside this CLI-facing contract. Version commit, tip and immutable manifest rea
 - API JSON body limit is 64 KiB. Description validation additionally limits
   JavaScript string length to 500 UTF-16 code units; the schema's 500-character
   bound does not capture that stricter astral-character behavior.
-- Repository lists and invitation inboxes return at most 100 items without a
-  continuation cursor. This is truncation, not complete pagination. Owner access
+- Repository lists return at most 500 items and invitation inboxes at most 100,
+  without a continuation cursor. This is truncation, not complete pagination. Owner access
   lists currently have no explicit cap. Do not describe list-all as complete.
-- Each account currently has a 100-owned-repository ceiling; this is a development
+- Each account currently has a 200-owned-repository ceiling; this is a development
   limit, not a published beta quota or pricing promise.
 - Repository details include owner_id; summaries do not. Schemas reject extra
   response fields so newly added database columns cannot silently become a public API.

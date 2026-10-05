@@ -14,13 +14,17 @@ Last updated: 2026-10-05
 
 ## Current state
 
-Released: **1.0.0** on npm (`prjlab-cli`), main 57e69ed, against prjlab.com in production.
+Released: **1.0.1** on npm (`prjlab-cli`). **1.1.0** (inner repositories) is on main, not yet published.
 
 - **Git repositories**: `prj login` registers a credential helper scoped to the PrjLab
   origin, `prj init` links a git clone and installs context hooks (pre-push, post-merge,
   post-checkout), `prj clone` is git clone plus init, `prj context push|pull` moves the
   AI context by hand. In a git repository whose origin is PrjLab, `prj push` and
   `prj pull` move the context only.
+- **Inner repositories**: `prj submodules` lists the git repositories inside a git
+  folder; `prj submodules publish` gives each its own PrjLab repository and links it as
+  a submodule; `prj clone` is recursive; `prj init` makes switch, pull, merge and push
+  submodule-aware; `prj create`/`prj init` say when inner repositories are not linked.
 - **Folders without git** (and git folders whose origin is elsewhere) use versions:
   `prj create`, `prj remote`, `prj push`, `prj pull`, `prj clone`.
 - **Context**: Claude Code memory, sessions and project settings. A broad `.prjignore`

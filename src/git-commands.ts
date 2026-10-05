@@ -34,6 +34,17 @@ import {
   type ContextRestore,
 } from "./context-mirror.js";
 import { repositoryArgument } from "./sync-commands.js";
+import {
+  innerRepositories,
+  innerNotice,
+  strayPointers,
+  configureSubmodules,
+  submodulePaths,
+  planPublish,
+  describePlan,
+  publish,
+} from "./inner-repositories.js";
+import { createInterface } from "node:readline/promises";
 
 type Result = { code: number; stdout: string; stderr: string };
 const ok = (lines: string[]): Result => ({
@@ -115,6 +126,7 @@ async function contextPush(
 async function initGit(
   cwd: string,
   signal: AbortSignal,
+  notice = true,
 ): Promise<Result | undefined> {
   const g = await gitRoot(cwd);
   if (!g) return undefined;
@@ -129,6 +141,11 @@ async function initGit(
       : "PrjLab is set up in this git repository.",
     ` git hooks installed: ${hooks.join(", ")}. Claude Code context now travels with git push, git pull and git switch.`,
   );
+  if (await configureSubmodules(cwd))
+    lines.push(
+      " Submodules: git switch and git pull now move the inner repositories too, and git push checks their commits are published.",
+    );
+  if (notice) lines.push(...(await innerNotice(cwd, true)).map((l) => ` ${l}`));
   const config = readLoginConfig();
   const name = g.origin ? prjlabRemote(g.origin, config.origin) : null;
   if (!name) {
@@ -233,14 +250,134 @@ async function cloneGit(
       "-c",
       `credential.helper=!${selfCommand("git-credential")}`,
       "clone",
+      // Inner repositories (submodules) come with it.
+      "--recurse-submodules",
       url,
       dir,
     ],
     process.cwd(),
   );
   if (code !== 0) return { code: 1, stdout: "", stderr: "git clone failed.\n" };
-  const init = await initGit(path.resolve(dir), signal);
-  return init ?? ok([]);
+  const root = path.resolve(dir);
+  const init = await initGit(root, signal);
+  // Each inner repository is a PrjLab git repository of its own: same setup.
+  const inner = await submodulePaths(root);
+  let ready = 0;
+  for (const rel of inner) {
+    const r = await initGit(path.join(root, rel), signal, false).catch(
+      () => undefined,
+    );
+    if (r?.code === 0) ready++;
+  }
+  const lines = init ? init.stdout.split("\n") : [];
+  if (inner.length)
+    lines.push(
+      ` ${inner.length} inner repositor${inner.length === 1 ? "y" : "ies"} cloned${ready ? `, ${ready} set up for context` : ""}.`,
+    );
+  return ok(lines);
+}
+async function confirm(question: string) {
+  const rl = createInterface({ input: process.stdin, output: process.stderr });
+  try {
+    return /^y(es)?$/i.test((await rl.question(question)).trim());
+  } finally {
+    rl.close();
+  }
+}
+const STATE: Record<string, string> = {
+  embedded:
+    "not published (recorded here as a bare pointer: a clone gets an empty folder)",
+  files: "not published (its files are tracked here as plain files)",
+  untracked: "not published",
+};
+const SUBMODULES_USAGE =
+  "Usage: prj submodules, or prj submodules publish [<path>...] [--yes]";
+/** `prj submodules`: the git repositories inside this one, and publishing them. */
+async function submodules(
+  cwd: string,
+  args: string[],
+  signal: AbortSignal,
+): Promise<Result> {
+  if (!(await gitRoot(cwd)))
+    throw new ProjectError(
+      "Run this at the top of a git repository. In a folder without git: git init, prj create, then prj submodules publish.",
+    );
+  const config = readLoginConfig();
+  if (!args.length) {
+    const { items, complete } = await innerRepositories(cwd);
+    if (!items.length) return ok(["No git repositories inside this one."]);
+    const width = Math.max(...items.map((i) => i.path.length));
+    const open = items.filter((i) => i.state !== "submodule").length;
+    return ok([
+      "Git repositories inside this one:",
+      ...items.map(
+        (i) =>
+          `  ${i.path.padEnd(width)}  ${
+            i.state === "submodule"
+              ? `submodule → ${(i.url && prjlabRemote(i.url, config.origin)) || i.url || "no URL"}${i.present ? "" : " (not cloned here: git submodule update --init)"}`
+              : STATE[i.state]
+          }`,
+      ),
+      open
+        ? `Give ${open === 1 ? "it its" : "each its"} own PrjLab repository and link it here: prj submodules publish`
+        : "",
+      complete
+        ? ""
+        : "This folder is very large; deeper folders were not searched.",
+    ]);
+  }
+  if (args[0] !== "publish") throw new ProjectError(SUBMODULES_USAGE);
+  const yes = args.includes("--yes") || args.includes("-y");
+  const paths = args.slice(1).filter((a) => a !== "--yes" && a !== "-y");
+  if (paths.some((p) => p.startsWith("-")))
+    throw new ProjectError(SUBMODULES_USAGE);
+  const { api: transport } = await api(signal);
+  const plan = await planPublish(cwd, config.origin, transport, signal, paths);
+  if (!plan.ready.length && !plan.skipped.length)
+    return ok(["Nothing to publish: every inner repository is a submodule."]);
+  const described = describePlan(config.origin, plan);
+  if (!plan.ready.length) return ok(["Nothing to publish.", ...described]);
+  const n = plan.ready.length;
+  const intro = [
+    `${n} inner repositor${n === 1 ? "y" : "ies"} of ${plan.outer}:`,
+    ...described,
+    "Each is pushed with all its branches and tags, then linked here as a submodule. No working file is changed.",
+  ];
+  if (!yes) {
+    if (!process.stdin.isTTY || !process.stderr.isTTY)
+      return {
+        code: 1,
+        stdout: "",
+        stderr: [...intro, "Run again with --yes to do it.", ""].join("\n"),
+      };
+    process.stderr.write(intro.join("\n") + "\n");
+    if (!(await confirm("Continue? [y/N] ")))
+      return { code: 1, stdout: "", stderr: "Nothing was changed.\n" };
+  }
+  const { results, committed } = await publish(
+    cwd,
+    config.origin,
+    transport,
+    signal,
+    plan,
+    (line) => process.stderr.write(line + "\n"),
+  );
+  const done = results.filter((r) => r.ok).length;
+  const failed = results.length - done;
+  const lines = [
+    `${done} of ${results.length} published and linked as submodule${results.length === 1 ? "" : "s"}.`,
+  ];
+  if (done)
+    lines.push(
+      committed
+        ? "Committed here. Send it: git push"
+        : 'Staged here, not committed. Commit and send it: git commit -m "Inner repositories are submodules" && git push',
+    );
+  if (failed)
+    lines.push(
+      `${failed} left as ${failed === 1 ? "it was" : "they were"}; fix the reason above and run prj submodules publish again.`,
+    );
+  return { code: failed ? 1 : 0, stdout: lines.join("\n") + "\n", stderr: "" };
 }
 /** Dispatch: returns undefined to fall back to the version commands. */
 export async function gitCommands(
@@ -249,8 +386,18 @@ export async function gitCommands(
   const [command, sub, ...rest] = args;
   const cwd = process.cwd();
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 5 * 60 * 1000);
+  // Publishing pushes whole repositories; everything else is small.
+  const timer = setTimeout(
+    () => controller.abort(),
+    (command === "submodules" || command === "clone" ? 60 : 5) * 60 * 1000,
+  );
   try {
+    if (command === "submodules")
+      return await submodules(
+        cwd,
+        args.slice(1) as string[],
+        controller.signal,
+      );
     if (command === "init" && args.length === 1)
       return await initGit(cwd, controller.signal);
     if (command === "clone")
@@ -263,6 +410,12 @@ export async function gitCommands(
         );
       const quiet = flags.has("--quiet");
       if (sub === "push") {
+        // From the pre-push hook: say when an inner repository is not travelling.
+        if (quiet)
+          for (const p of await strayPointers(cwd).catch(() => []))
+            process.stderr.write(
+              `prj: ${p} is a git repository inside this one and is not published; a clone gets an empty folder. Run: prj submodules publish\n`,
+            );
         const r = await contextPush(
           cwd,
           controller.signal,

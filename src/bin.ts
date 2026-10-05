@@ -23,9 +23,14 @@ const update = checkForUpdate(VERSION);
 const auth = ["login", "logout", "whoami"].includes(args[0] ?? "")
   ? await (await import("./auth-commands.js")).authCommands(args)
   : undefined;
-const withGit = ["init", "clone", "context", "push", "pull"].includes(
-  args[0] ?? "",
-)
+const withGit = [
+  "init",
+  "clone",
+  "context",
+  "push",
+  "pull",
+  "submodules",
+].includes(args[0] ?? "")
   ? await (await import("./git-commands.js")).gitCommands(args)
   : undefined;
 const sync =
