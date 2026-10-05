@@ -1,5 +1,22 @@
 # History
 
+## 2026-10-05 — Documentation caught up
+
+STATUS.md still described the state of 2026-09-20 ("no production deployment or npm
+publication"); it now describes 1.0.0. contracts/README.md quoted the 60 KiB manifest
+and 64 KiB request limits of contract 0.5.
+
+## 2026-10-04 — 1.0.0: real git + Claude context (docs/20), released
+
+main (0.7.0–0.8.2) was merged into `cli-1.0-git`: the rewritten scanner kept the 1.0
+context-only mode (git carries the files), and `prj create` in a git folder makes the
+repository and prints the git steps. PR35 merged as 57e69ed after CI on three systems,
+173 tests. Verified against staging and then production with two isolated "laptops":
+clone, branch, push, merge, context through the hooks, anonymous clone of a public
+repository, helper removed on logout; and separately a folder without git (create, push
+with a 6 MiB file, clone back identical, a broad ignore rule keeping the context).
+Published to npm as 1.0.0.
+
 ## 2026-10-04 — 0.8.2: honest refusals
 
 `prj create` blamed the name whenever the server answered 409, but the server
