@@ -77,7 +77,7 @@ interface Api {
   ): Promise<{ status: number; data: unknown }>;
 }
 /** Repositories one account may own (the server answers 409 beyond it). */
-const ACCOUNT_REPOSITORIES = 100;
+const ACCOUNT_REPOSITORIES = 200;
 /**
  * The server answers 409 both for a name that is taken and for an account that
  * owns the maximum number of repositories. Look at what the account owns to

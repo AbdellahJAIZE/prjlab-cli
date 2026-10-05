@@ -1,5 +1,10 @@
 # History
 
+## 2026-10-05 — 1.0.1: the repository limit is 200
+
+The platform raised the number of repositories one account may own from 100 to
+200; `prj create` names that limit in its message.
+
 ## 2026-10-05 — Documentation caught up
 
 STATUS.md still described the state of 2026-09-20 ("no production deployment or npm
