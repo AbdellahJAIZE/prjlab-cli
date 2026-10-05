@@ -8,6 +8,7 @@ import { LoginSession } from "./login-session.js";
 import { ProjectError, LimitError } from "./snapshot.js";
 import { ask, leaveOut } from "./review.js";
 import { create, describeCreated, parseCreateArguments } from "./create.js";
+import { innerNotice } from "./inner-repositories.js";
 import { gitFolder } from "./git-integration.js";
 import { TransportError } from "./http.js";
 import path from "node:path";
@@ -315,6 +316,11 @@ export async function syncCommands(args: readonly string[]) {
             "  prj init",
           ]
         : describeCreated(config.origin, made);
+      // Git repositories inside this folder are not part of it: say so now.
+      if (wanted.link !== false)
+        lines.push(
+          ...(await innerNotice(process.cwd(), inGit).catch(() => [])),
+        );
       return { code: 0, stdout: lines.join("\n") + "\n", stderr: "" };
     }
     const parsed =

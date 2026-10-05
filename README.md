@@ -63,6 +63,37 @@ hooks are kept and still run first) and keeps `.prj/` out of git through
 runs it by hand. IDEs and CI can use a personal access token from PrjLab
 Settings as the git password instead of `prj login`.
 
+### A git repository inside another one
+
+Git never stores one repository inside another. A folder with its own `.git` is
+either a **submodule** (the outer repository records which commit of it belongs
+here) or it is not part of the outer repository at all. prj keeps it that way
+everywhere:
+
+```sh
+prj submodules                # the git repositories inside this one, and their state
+prj submodules publish        # each gets its own private PrjLab repository
+                              # (<outer>-<folder>), is pushed with every branch and
+                              # tag, and is linked here as a submodule
+git push                      # send the outer repository
+```
+
+- `prj create` and `prj init` tell you when a folder holds inner repositories
+  that are not linked yet. Nothing is published without your yes
+  (`--yes` answers it in scripts; `prj submodules publish <path>` picks some).
+- Publishing changes no working file. An inner repository that already has an
+  `origin` elsewhere keeps it and gets a second remote named `prjlab`. Only
+  commits travel: uncommitted changes are counted and named, not uploaded.
+- `prj clone` brings the inner repositories along (`git clone
+--recurse-submodules`) and sets each one up like any other PrjLab repository.
+- With submodules, `prj init` sets `submodule.recurse=true` and
+  `push.recurseSubmodules=check` in that clone: `git switch` and `git pull` move
+  the inner repositories with the outer one, the post-merge hook does the same
+  after a plain `git merge`, and `git push` refuses an outer commit that points
+  to an inner commit no remote has. Push the inner repository first.
+- Branches and merges are plain git: the outer repository's branches record
+  which inner commit they use; the inner repositories keep their own branches.
+
 Folders without git still work with versions: `prj create` makes a private
 repository named after the folder and links it (`prj create my-name -d "what it is"`
 picks the name and a description, `--no-link` only creates it), then `prj push` and

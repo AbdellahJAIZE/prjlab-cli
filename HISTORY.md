@@ -1,5 +1,29 @@
 # History
 
+## 2026-10-05 — 1.1.0: a git repository inside another one never mixes into it
+
+- Why: the owner's folders held other git repositories. Converting them by hand to
+  submodules worked; the rule had to hold for every repository from now on ("add,
+  clone, branches, merges").
+- `src/inner-repositories.ts`: finds folders with their own `.git` (not looked into;
+  ignored folders left out), classifies how the outer index holds each (submodule,
+  bare pointer without `.gitmodules`, plain files, untracked), plans and publishes.
+- `prj submodules` and `prj submodules publish [<path>...] [--yes]`: create
+  `<outer>-<folder>` (or reuse the PrjLab repository an inner remote already names),
+  push every branch and tag (a detached HEAD gets `prjlab/detached-<sha>`), then
+  `git submodule add`. A failure leaves that one exactly as it was. Commits only when
+  nothing else was staged.
+- `prj clone` passes `--recurse-submodules` and runs the init in each inner repository.
+- `prj init`: with `.gitmodules`, sets `submodule.recurse=true` and
+  `push.recurseSubmodules=check`; the post-merge hook runs `git submodule update` so a
+  plain merge follows too (git's own list for `submodule.recurse` has no merge:
+  git-config documentation). The pre-push hook names bare pointers nobody can clone.
+- `prj create` / `prj init` print a notice when inner repositories are not linked.
+- Contract: `Repositories.maxItems` 100 → 500 (the account limit is 200; the list was
+  silently cut at 100).
+- Checked against prjlab.com with a throwaway repository and two inner ones: publish,
+  `prj clone`, switch, merge, refused push, then deleted. 179 tests.
+
 ## 2026-10-05 — 1.0.1: the repository limit is 200
 
 The platform raised the number of repositories one account may own from 100 to

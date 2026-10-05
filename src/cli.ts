@@ -1,4 +1,4 @@
-export const VERSION = "1.0.1";
+export const VERSION = "1.1.0";
 const HELP = `prj ${VERSION} — push, pull and clone your projects with their context.
 
 Usage: prj <command> [arguments]
@@ -10,12 +10,17 @@ Account
   logout                             Remove the saved credentials on this machine
 
 Git repositories (code travels with git, AI context with prj)
-  clone <handle>/<name> [<dir>]      git clone + prj init
+  clone <handle>/<name> [<dir>]      git clone + prj init; inner repositories
+                                     (submodules) come with it
   init                               In a git repository: link it, keep .prj out
                                      of git, install hooks so Claude Code memory
                                      and sessions travel with git push/pull/switch
   context                            Show the AI-tool context found for this folder
   context push|pull [--quiet]        Move the context by hand (the hooks do this)
+  submodules                         Show the git repositories inside this one
+  submodules publish [<path>...] [--yes]
+                                     Give each its own PrjLab repository and link
+                                     it here, so it never mixes into this one
   Like GitHub: git clone https://prjlab.com/<handle>/<name>.git, then prj init.
 
 Folders without git (versions)
