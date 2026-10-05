@@ -110,8 +110,8 @@ returns `{id,parent}` (both null initially); GET `/repositories/{id}/versions/{v
 returns `{id,parent,manifest}`. Owners/writers commit; current members read.
 
 Manifest semantics come from MIT-licensed `src/manifest.ts`, shared by the CLI and
-platform. Normalized manifest limit:60KiB; enclosing request:64KiB; maximum1000
-versions per repository (development limits). Encrypted manifests are separate
+platform. Normalized manifest limit: 2,560 KiB; enclosing request: 4 MiB; maximum 1,000
+versions per repository. Encrypted manifests are separate
 from file-object quota. Retry keys are scoped to actor/repository and retained
 for version lifetime. Changed replay data conflicts; revocation precedes replay.
 A stale expected parent returns409 tip_conflict. Incomplete references return409

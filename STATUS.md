@@ -1,6 +1,6 @@
 # CLI status
 
-Last updated: 2026-09-20
+Last updated: 2026-10-05
 
 ## Tracking map
 
@@ -14,26 +14,30 @@ Last updated: 2026-09-20
 
 ## Current state
 
-Local snapshot/export/restore/recovery, secure login and bounded JSON/binary
-transport are merged. Login storage passed native Linux/macOS/Windows CI.
-Shared portable manifest validator and version contract are merged (PR13).
+Released: **1.0.0** on npm (`prjlab-cli`), main 57e69ed, against prjlab.com in production.
 
-Private push/pull/clone merged in PR15 as c74af43 after all Linux/macOS/Windows
-quality and security checks. Durable pending operations preserve a truthful remote
-base independently of local snapshots. Recovery, conflicts, lost replies and safe
-clone destinations are tested; packed installation passes.
+- **Git repositories**: `prj login` registers a credential helper scoped to the PrjLab
+  origin, `prj init` links a git clone and installs context hooks (pre-push, post-merge,
+  post-checkout), `prj clone` is git clone plus init, `prj context push|pull` moves the
+  AI context by hand. In a git repository whose origin is PrjLab, `prj push` and
+  `prj pull` move the context only.
+- **Folders without git** (and git folders whose origin is elsewhere) use versions:
+  `prj create`, `prj remote`, `prj push`, `prj pull`, `prj clone`.
+- **Context**: Claude Code memory, sessions and project settings. A broad `.prjignore`
+  rule cannot drop it; the `Context:` line reports what the version carries and warns
+  about what it does not; a session line over 8 MiB is split across segments.
+- **Limits** (contract 0.9): 5,000 entries, 25 MiB per file, 500 MiB per repository.
+  An over-limit folder is explained and, on a terminal, the person chooses what stays out.
+- Local snapshots, export, restore and recovery are unchanged.
 
-Contract0.5 mergedfb02b61. Session-aware push merged303cab2 (PR19) after
-Linux/macOS/Windows quality and security checks.117 tests and packed installation
-pass. The actual platform/PostgreSQL suite verifies lost successful begin/commit
-replies without duplicate sessions or versions. Live identity remains unverified.
+173 tests; CI on Linux, macOS and Windows plus a security scan on every pull request.
+A GitHub release `vX.Y.Z` publishes to npm through trusted publishing (publish.yml).
 
 ## Next
 
-Storage reference inventory and crash-safe reclamation are private-platform work.
-The overall plan and exact current cross-repository checkpoint live in the owning
-project workspace. Keep legacy pending pushes recoverable during future upgrades.
-
-Live identity verification, server-side device revocation, cloud operations and
-release gates remain open. No production deployment or npm publication.
-Logout removes local credentials. Hosted encryption remains the selected model.
+- A version pushed with a line cut across segments shows that one row as unreadable in
+  the web session viewer (it restores correctly); the viewer should join segments first.
+- Codex and other tools (docs/19 of the workspace) are not started.
+- The interactive "what stays out" prompt is covered by tests of its logic, not by a
+  terminal test.
+- The overall plan and cross-repository checkpoints live in the owning project workspace.
