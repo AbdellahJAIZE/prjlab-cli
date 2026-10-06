@@ -14,7 +14,7 @@ Last updated: 2026-10-05
 
 ## Current state
 
-Released: **1.0.1** on npm (`prjlab-cli`). **1.1.0** (inner repositories) is on main, not yet published.
+Released: **1.1.0** on npm (`prjlab-cli`); **1.1.1** (Node 20–26) on main.
 
 - **Git repositories**: `prj login` registers a credential helper scoped to the PrjLab
   origin, `prj init` links a git clone and installs context hooks (pre-push, post-merge,

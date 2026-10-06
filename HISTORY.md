@@ -1,5 +1,14 @@
 # History
 
+## 2026-10-06 — 1.1.1: Node 20 to 26
+
+- Why: `engines` said `>=22 <23`, so Node 24 (active LTS) and 26 installed with a warning,
+  and Node 20 was refused although everything works there.
+- `engines.node` `>=20`; CI runs the suite on 20, 22 and 26 besides the three operating
+  systems on 24 (`.nvmrc`). README says which versions are tested.
+- Source: nodejs.org release schedule (24 LTS until 2028-04-30, 26 LTS from 2026-10-28,
+  22 maintenance until 2027-04-30, 20 ended 2026-04-30).
+
 ## 2026-10-05 — 1.1.0: a git repository inside another one never mixes into it
 
 - Why: the owner's folders held other git repositories. Converting them by hand to
