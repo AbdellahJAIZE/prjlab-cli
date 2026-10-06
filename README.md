@@ -14,7 +14,7 @@ MIT licensed and does not contain the platform or any credentials.
 
 ## Install
 
-Requires Node 22. The package is published on npm as
+Requires Node 20 or newer (tested on 20, 22, 24 and 26). The package is published on npm as
 [`prjlab-cli`](https://www.npmjs.com/package/prjlab-cli):
 
 ```sh
