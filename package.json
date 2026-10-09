@@ -53,6 +53,6 @@
   "dependencies": {
     "@azure/msal-node": "6.0.1",
     "@napi-rs/keyring": "2.1.0",
-    "ignore": "7.0.9"
+    "ignore": "7.0.12"
   }
 }
